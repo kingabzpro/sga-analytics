@@ -24,9 +24,11 @@ export const metadata: Metadata = {
   title: "SGA Analytics | SEO, AEO & GEO Scores",
   description:
     "Paste a URL to score SEO, Answer Engine Optimization (AEO), and Generative Engine Optimization (GEO) with clear, actionable tips.",
+  // icon.tsx (32×32 PNG) and apple-icon.tsx (180×180 PNG) are auto-wired via
+  // the file conventions — only the SVG (in /public) needs a manual entry here.
   icons: {
-    icon: "/logo-mark.jpg",
-    apple: "/logo-mark.jpg",
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
   },
   openGraph: {
     title: "SGA Analytics",
