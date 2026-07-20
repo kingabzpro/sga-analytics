@@ -75,7 +75,7 @@ export function AnalyzerApp() {
         <label htmlFor="url" className="sr-only">
           Website URL
         </label>
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white px-3 ring-1 ring-slate-200/90 focus-within:ring-2 focus-within:ring-indigo-300">
+        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-white px-3 ring-1 ring-slate-200/90">
           <svg
             width="18"
             height="18"
@@ -97,7 +97,7 @@ export function AnalyzerApp() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://your-site.com"
-            className="input-focus min-w-0 flex-1 border-0 bg-transparent py-3.5 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+            className="min-w-0 flex-1 border-0 bg-transparent py-3.5 text-sm text-slate-900 shadow-none outline-none ring-0 placeholder:text-slate-400 focus:border-0 focus:outline-none focus:ring-0 focus:shadow-none"
             disabled={loading}
             required
             autoComplete="url"
