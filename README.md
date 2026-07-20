@@ -19,7 +19,7 @@ Open-source stack: **cheerio**, **seord**, **robots-parser**. Optional AI tips v
 ```bash
 npm install
 cp .env.example .env.local
-# optional: set HF_TOKEN in .env.local for AI-written recommendations
+# optional: set HF_TOKEN (or FIREWORKS_API_KEY) for AI-written recommendations
 
 npm run dev
 ```
@@ -40,14 +40,17 @@ Returns overall + SEO/AEO/GEO scores, checks, and recommendations.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `HF_TOKEN` | No | Hugging Face token. Model: `prism-ml/Ternary-Bonsai-27B-gguf:together` |
+| `HF_TOKEN` | No | HF or Fireworks API key for AI tips |
+| `FIREWORKS_API_KEY` | No | Optional; used instead of `HF_TOKEN` if set |
 
-Without `HF_TOKEN`, the app still works using rule-based tips.
+**Model:** `deepseek-ai/DeepSeek-V4-Flash` via provider `fireworks-ai` (`@huggingface/inference`).
+
+Without a token, the app still works using rule-based tips.
 
 ## Deploy (Vercel)
 
 ```bash
-vercel env add HF_TOKEN
+vercel env add HF_TOKEN production --value "<token>" --yes --force --sensitive
 vercel --prod
 ```
 

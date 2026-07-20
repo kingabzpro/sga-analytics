@@ -167,8 +167,10 @@ export function AnalyzerApp() {
 
       <footer className="mt-12 text-center text-xs text-zinc-400">
         Powered by open-source checks (cheerio, seord, robots-parser)
-        {result?.aiSource === "huggingface" ? " + Hugging Face" : ""}. MVP for
-        smoke-testing the pipeline.
+        {result?.aiSource === "huggingface"
+          ? " + DeepSeek-V4-Flash (Fireworks)"
+          : ""}
+        . MVP for smoke-testing the pipeline.
       </footer>
     </div>
   );

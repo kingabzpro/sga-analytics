@@ -1,7 +1,8 @@
 import { InferenceClient } from "@huggingface/inference";
 import type { AnalyzeResult, CategoryScore } from "./types";
 
-const MODEL = "prism-ml/Ternary-Bonsai-27B-gguf:together";
+const MODEL = "deepseek-ai/DeepSeek-V4-Flash";
+const PROVIDER = "fireworks-ai" as const;
 const AI_TIMEOUT_MS = 45000;
 
 export type AiAdvice = {
@@ -160,16 +161,26 @@ export async function generateAiAdvice(input: {
     input.geo,
     input.overallScore
   );
-  const token = process.env.HF_TOKEN;
+  // Fireworks key (fw_...) preferred; HF token also works via fireworks-ai provider
+  const token =
+    process.env.FIREWORKS_API_KEY ||
+    process.env.HF_TOKEN ||
+    process.env.HF_API_TOKEN;
 
   if (!token) {
     return fallback;
   }
 
   const failed = [
-    ...input.seo.checks.filter((c) => !c.passed).map((c) => `SEO: ${c.label} — ${c.detail}`),
-    ...input.aeo.checks.filter((c) => !c.passed).map((c) => `AEO: ${c.label} — ${c.detail}`),
-    ...input.geo.checks.filter((c) => !c.passed).map((c) => `GEO: ${c.label} — ${c.detail}`),
+    ...input.seo.checks
+      .filter((c) => !c.passed)
+      .map((c) => `SEO: ${c.label} — ${c.detail}`),
+    ...input.aeo.checks
+      .filter((c) => !c.passed)
+      .map((c) => `AEO: ${c.label} — ${c.detail}`),
+    ...input.geo.checks
+      .filter((c) => !c.passed)
+      .map((c) => `GEO: ${c.label} — ${c.detail}`),
   ]
     .slice(0, 12)
     .join("\n");
@@ -189,20 +200,21 @@ VERDICT: <one plain sentence about the site>
 4. [SEO] <specific action>
 5. [GEO] <specific action>
 
-Rules: use real advice from the failed checks; do not copy placeholders; each line must be a complete actionable tip.`;
+Rules: use real advice from the failed checks; do not copy placeholders; each line must be a complete actionable tip. No HTML.`;
 
   try {
     const client = new InferenceClient(token);
 
     const result = await Promise.race([
       client.chatCompletion({
+        provider: PROVIDER,
         model: MODEL,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 2048,
+        max_tokens: 800,
         temperature: 0.3,
       }),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("HF timeout")), AI_TIMEOUT_MS)
+        setTimeout(() => reject(new Error("AI timeout")), AI_TIMEOUT_MS)
       ),
     ]);
 
@@ -224,7 +236,7 @@ Rules: use real advice from the failed checks; do not copy placeholders; each li
 
     const summaryLooksBad =
       !parsed.summary ||
-      /one plain sentence|concrete fix|specific action|SEO\|AEO/i.test(
+      /one plain sentence|concrete fix|specific action|SEO\|AEO|```html/i.test(
         parsed.summary
       );
 
