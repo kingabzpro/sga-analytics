@@ -104,7 +104,7 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
       case "question-headings":
         return "Use natural-language question headings (e.g. “How does X work?”).";
       case "direct-answer":
-        return "Start with a concise 40–300 character answer paragraph before deep detail.";
+        return "Start with a concise 40-300 character answer paragraph before deep detail.";
       case "lists-tables":
         return "Structure key facts as bullet lists or tables for snippet extraction.";
       case "heading-outline":

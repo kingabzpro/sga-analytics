@@ -117,7 +117,7 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     weight: 10,
     detail: signals.title
       ? `Title: “${signals.title.slice(0, 90)}”`
-      : "Missing title — entities are harder to extract",
+      : "Missing title, so entities are harder to extract",
   });
 
   return buildCategory(checks, (c) => {

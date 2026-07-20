@@ -1,64 +1,87 @@
 import type { AnalyzeResult } from "@/lib/types";
 
-function scoreColor(score: number) {
-  if (score >= 80) return "text-emerald-600 border-emerald-200 bg-emerald-50";
-  if (score >= 60) return "text-amber-600 border-amber-200 bg-amber-50";
-  return "text-rose-600 border-rose-200 bg-rose-50";
-}
-
 function ringColor(score: number) {
   if (score >= 80) return "#059669";
   if (score >= 60) return "#d97706";
   return "#e11d48";
 }
 
+function tint(score: number) {
+  if (score >= 80) return "from-emerald-50/80 to-white";
+  if (score >= 60) return "from-amber-50/80 to-white";
+  return "from-rose-50/70 to-white";
+}
+
+function labelColor(score: number) {
+  if (score >= 80) return "text-emerald-700";
+  if (score >= 60) return "text-amber-700";
+  return "text-rose-700";
+}
+
 function ScoreRing({
   label,
   score,
   subtitle,
+  featured = false,
 }: {
   label: string;
   score: number;
   subtitle?: string;
+  featured?: boolean;
 }) {
-  const r = 36;
+  const r = featured ? 40 : 34;
+  const size = featured ? 108 : 92;
   const c = 2 * Math.PI * r;
-  const offset = c - (score / 100) * c;
+  const offset = c - (Math.min(100, Math.max(0, score)) / 100) * c;
+  const cx = size / 2;
 
   return (
     <div
-      className={`flex flex-col items-center rounded-2xl border p-5 ${scoreColor(score)}`}
+      className={`score-card flex flex-col items-center rounded-2xl bg-gradient-to-b p-4 sm:p-5 ${tint(score)} ${
+        featured ? "sm:col-span-1" : ""
+      }`}
     >
-      <svg width="96" height="96" className="-rotate-90">
-        <circle
-          cx="48"
-          cy="48"
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeOpacity="0.15"
-          strokeWidth="8"
-        />
-        <circle
-          cx="48"
-          cy="48"
-          r={r}
-          fill="none"
-          stroke={ringColor(score)}
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <div className="mt-[-62px] mb-6 text-2xl font-bold tabular-nums text-zinc-900">
-        {score}
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle
+            cx={cx}
+            cy={cx}
+            r={r}
+            fill="none"
+            stroke="#e2e8f0"
+            strokeWidth={featured ? 9 : 8}
+          />
+          <circle
+            cx={cx}
+            cy={cx}
+            r={r}
+            fill="none"
+            stroke={ringColor(score)}
+            strokeWidth={featured ? 9 : 8}
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={offset}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span
+            className={`font-mono-nums font-semibold tracking-tight text-slate-900 ${
+              featured ? "text-3xl" : "text-2xl"
+            }`}
+          >
+            {score}
+          </span>
+        </div>
       </div>
-      <div className="text-sm font-semibold tracking-wide text-zinc-800">
+      <div
+        className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] ${labelColor(score)}`}
+      >
         {label}
       </div>
       {subtitle ? (
-        <div className="mt-1 text-center text-xs text-zinc-500">{subtitle}</div>
+        <div className="mt-1 text-center text-xs leading-snug text-slate-500">
+          {subtitle}
+        </div>
       ) : null}
     </div>
   );
@@ -66,13 +89,18 @@ function ScoreRing({
 
 export function ScoreCards({ result }: { result: AnalyzeResult }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
       <ScoreRing
         label="Overall"
         score={result.overallScore}
-        subtitle="Average of all"
+        subtitle="Average of all scores"
+        featured
       />
-      <ScoreRing label="SEO" score={result.seo.score} subtitle="Search engines" />
+      <ScoreRing
+        label="SEO"
+        score={result.seo.score}
+        subtitle="Search engines"
+      />
       <ScoreRing
         label="AEO"
         score={result.aeo.score}

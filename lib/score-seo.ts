@@ -12,7 +12,7 @@ function pickKeyword(signals: PageSignals): string {
     .split(/\s+/)
     .filter((w) => w.length > 3);
   if (words.length === 0) return "website";
-  // Prefer 1–3 meaningful words
+  // Prefer 1-3 meaningful words
   return words.slice(0, Math.min(3, words.length)).join(" ");
 }
 
@@ -181,9 +181,9 @@ export function scoreSeo(signals: PageSignals): CategoryScore {
   const category = buildCategory(checks, (c) => {
     switch (c.id) {
       case "title":
-        return "Add a clear title tag between ~30–60 characters that describes the page.";
+        return "Add a clear title tag between about 30-60 characters that describes the page.";
       case "meta-description":
-        return "Write a compelling meta description (~120–160 characters) summarizing the page.";
+        return "Write a compelling meta description (about 120-160 characters) summarizing the page.";
       case "h1-single":
         return "Use exactly one H1 that matches the main topic of the page.";
       case "https":

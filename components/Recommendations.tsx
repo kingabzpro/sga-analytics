@@ -1,5 +1,18 @@
 import type { AnalyzeResult } from "@/lib/types";
 
+function tagClass(tip: string) {
+  if (/\[SEO\]/i.test(tip)) return "bg-indigo-100 text-indigo-700";
+  if (/\[AEO\]/i.test(tip)) return "bg-violet-100 text-violet-700";
+  if (/\[GEO\]/i.test(tip)) return "bg-sky-100 text-sky-700";
+  return "bg-slate-100 text-slate-600";
+}
+
+function splitTip(tip: string) {
+  const m = tip.match(/^\[(SEO|AEO|GEO)\]\s*(.*)$/i);
+  if (m) return { tag: m[1].toUpperCase(), body: m[2] };
+  return { tag: null as string | null, body: tip };
+}
+
 export function Recommendations({ result }: { result: AnalyzeResult }) {
   const tips =
     result.aiRecommendations.length > 0
@@ -11,34 +24,55 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
         ].slice(0, 8);
 
   return (
-    <section className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-base font-semibold text-zinc-900">
-          How to improve
-        </h3>
-        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-indigo-600 ring-1 ring-indigo-100">
+    <section className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-5 sm:p-6 shadow-sm">
+      <div
+        className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-indigo-200/30 blur-3xl"
+        aria-hidden
+      />
+      <div className="relative mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="font-display text-lg font-semibold text-slate-900">
+            How to improve
+          </h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Prioritized fixes based on your audit
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700 ring-1 ring-indigo-100">
           {result.aiSource === "huggingface" ? "AI + rules" : "Rule-based"}
         </span>
       </div>
 
       {result.aiSummary ? (
-        <p className="mb-4 text-sm leading-relaxed text-zinc-700">
+        <p className="relative mb-5 max-w-3xl text-sm leading-relaxed text-slate-700 sm:text-[15px]">
           {result.aiSummary}
         </p>
       ) : null}
 
-      <ol className="space-y-2.5">
-        {tips.map((tip, i) => (
-          <li
-            key={`${i}-${tip.slice(0, 24)}`}
-            className="flex gap-3 rounded-xl bg-white/80 px-3 py-2.5 ring-1 ring-indigo-50"
-          >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
-              {i + 1}
-            </span>
-            <span className="text-sm leading-relaxed text-zinc-700">{tip}</span>
-          </li>
-        ))}
+      <ol className="relative space-y-2.5">
+        {tips.map((tip, i) => {
+          const { tag, body } = splitTip(tip);
+          return (
+            <li
+              key={`${i}-${tip.slice(0, 24)}`}
+              className="flex gap-3 rounded-xl bg-white/90 px-3.5 py-3 ring-1 ring-indigo-50/80"
+            >
+              <span className="font-mono-nums flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-semibold text-white">
+                {i + 1}
+              </span>
+              <div className="min-w-0 pt-0.5">
+                {tag ? (
+                  <span
+                    className={`mb-1.5 inline-block rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${tagClass(tip)}`}
+                  >
+                    {tag}
+                  </span>
+                ) : null}
+                <p className="text-sm leading-relaxed text-slate-700">{body}</p>
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </section>
   );

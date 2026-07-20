@@ -28,7 +28,7 @@ function ruleFallback(
     recommendations: tips.length
       ? tips
       : [
-          "Looks solid — keep content fresh and re-audit after major site changes.",
+          "Looks solid. Keep content fresh and re-audit after major site changes.",
         ],
     source: "rules",
   };
@@ -174,13 +174,13 @@ export async function generateAiAdvice(input: {
   const failed = [
     ...input.seo.checks
       .filter((c) => !c.passed)
-      .map((c) => `SEO: ${c.label} — ${c.detail}`),
+      .map((c) => `SEO: ${c.label}: ${c.detail}`),
     ...input.aeo.checks
       .filter((c) => !c.passed)
-      .map((c) => `AEO: ${c.label} — ${c.detail}`),
+      .map((c) => `AEO: ${c.label}: ${c.detail}`),
     ...input.geo.checks
       .filter((c) => !c.passed)
-      .map((c) => `GEO: ${c.label} — ${c.detail}`),
+      .map((c) => `GEO: ${c.label}: ${c.detail}`),
   ]
     .slice(0, 12)
     .join("\n");
