@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SGA Analytics
 
-## Getting Started
+Lightweight **SEO · AEO · GEO** website scoring app.
 
-First, run the development server:
+Paste a URL → get scores, check breakdowns, and improvement tips.
+
+## What it measures
+
+| Score | Focus |
+|-------|--------|
+| **SEO** | Classic on-page signals + [seord](https://www.npmjs.com/package/seord) content analysis |
+| **AEO** | Answer Engine Optimization (FAQ schema, Q&A headings, snippet structure) |
+| **GEO** | Generative Engine Optimization (JSON-LD, `llms.txt`, AI bot robots, E-E-A-T) |
+
+Open-source stack: **cheerio**, **seord**, **robots-parser**. Optional AI tips via **Hugging Face Inference**.
+
+## Quick start
 
 ```bash
+npm install
+cp .env.example .env.local
+# optional: set HF_TOKEN in .env.local for AI-written recommendations
+
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`POST /api/analyze`
 
-## Learn More
+```json
+{ "url": "https://example.com" }
+```
 
-To learn more about Next.js, take a look at the following resources:
+Returns overall + SEO/AEO/GEO scores, checks, and recommendations.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `HF_TOKEN` | No | Hugging Face token. Model: `prism-ml/Ternary-Bonsai-27B-gguf:together` |
 
-## Deploy on Vercel
+Without `HF_TOKEN`, the app still works using rule-based tips.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy (Vercel)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+vercel env add HF_TOKEN
+vercel --prod
+```
+
+## License
+
+MIT
