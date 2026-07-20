@@ -1,20 +1,20 @@
 import type { AnalyzeResult } from "@/lib/types";
 
 function ringColor(score: number) {
-  if (score >= 80) return "#059669";
-  if (score >= 60) return "#d97706";
+  if (score >= 80) return "#0d9488";
+  if (score >= 60) return "#0891b2";
   return "#e11d48";
 }
 
 function tint(score: number) {
-  if (score >= 80) return "from-emerald-50/80 to-white";
-  if (score >= 60) return "from-amber-50/80 to-white";
-  return "from-rose-50/70 to-white";
+  if (score >= 80) return "from-teal-50/90 to-white";
+  if (score >= 60) return "from-cyan-50/90 to-white";
+  return "from-rose-50/80 to-white";
 }
 
 function labelColor(score: number) {
-  if (score >= 80) return "text-emerald-700";
-  if (score >= 60) return "text-amber-700";
+  if (score >= 80) return "text-teal-700";
+  if (score >= 60) return "text-cyan-700";
   return "text-rose-700";
 }
 
@@ -37,9 +37,7 @@ function ScoreRing({
 
   return (
     <div
-      className={`score-card flex flex-col items-center rounded-2xl bg-gradient-to-b p-4 sm:p-5 ${tint(score)} ${
-        featured ? "sm:col-span-1" : ""
-      }`}
+      className={`score-card flex flex-col items-center rounded-2xl bg-gradient-to-b p-4 sm:p-5 ${tint(score)}`}
     >
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">

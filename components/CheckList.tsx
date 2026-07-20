@@ -1,9 +1,15 @@
 import type { CategoryScore } from "@/lib/types";
 
 const accents: Record<string, string> = {
-  SEO: "border-t-indigo-500",
-  AEO: "border-t-violet-500",
-  GEO: "border-t-sky-500",
+  SEO: "border-t-teal-500",
+  AEO: "border-t-cyan-500",
+  GEO: "border-t-emerald-500",
+};
+
+const badges: Record<string, string> = {
+  SEO: "bg-teal-600",
+  AEO: "bg-cyan-600",
+  GEO: "bg-emerald-600",
 };
 
 export function CheckList({
@@ -31,7 +37,9 @@ export function CheckList({
             {passed} of {total} checks passed
           </p>
         </div>
-        <span className="font-mono-nums rounded-lg bg-slate-900 px-2.5 py-1 text-sm font-semibold text-white">
+        <span
+          className={`font-mono-nums rounded-lg px-2.5 py-1 text-sm font-semibold text-white ${badges[kind] || badges.SEO}`}
+        >
           {category.score}
         </span>
       </div>

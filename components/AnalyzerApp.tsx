@@ -39,27 +39,23 @@ export function AnalyzerApp() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:py-14">
-      {/* Top bar */}
       <nav className="mb-10 flex items-center justify-between gap-4">
         <Logo size="md" />
         <div className="hidden items-center gap-2 sm:flex">
-          <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200/80">
+          <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-teal-100">
             Free URL audit
           </span>
         </div>
       </nav>
 
-      {/* Hero */}
       <header className="mx-auto mb-10 max-w-3xl text-center">
-        <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700 ring-1 ring-indigo-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+        <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800 ring-1 ring-teal-100">
+          <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
           Website scoring
         </p>
         <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
           Score any site for{" "}
-          <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-            SEO, AEO &amp; GEO
-          </span>
+          <span className="text-brand-gradient">SEO, AEO &amp; GEO</span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-600 sm:text-base">
           Paste a URL to audit on-page SEO, answer-engine readiness, and
@@ -67,7 +63,6 @@ export function AnalyzerApp() {
         </p>
       </header>
 
-      {/* Search */}
       <form
         onSubmit={onSubmit}
         className="glass-panel mx-auto mb-8 flex w-full max-w-2xl flex-col gap-3 rounded-2xl p-2 sm:flex-row sm:items-center sm:gap-2 sm:p-2"
@@ -81,7 +76,7 @@ export function AnalyzerApp() {
             height="18"
             viewBox="0 0 24 24"
             fill="none"
-            className="shrink-0 text-slate-400"
+            className="shrink-0 text-teal-600/70"
             aria-hidden
           >
             <path
@@ -115,13 +110,13 @@ export function AnalyzerApp() {
       {loading ? (
         <div className="glass-panel mx-auto mb-8 flex max-w-2xl items-center justify-center gap-3 rounded-2xl px-5 py-4 text-sm text-slate-600">
           <span className="flex gap-1" aria-hidden>
-            <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-indigo-500" />
+            <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-teal-500" />
             <span
-              className="pulse-dot h-1.5 w-1.5 rounded-full bg-indigo-500"
+              className="pulse-dot h-1.5 w-1.5 rounded-full bg-cyan-500"
               style={{ animationDelay: "0.2s" }}
             />
             <span
-              className="pulse-dot h-1.5 w-1.5 rounded-full bg-violet-500"
+              className="pulse-dot h-1.5 w-1.5 rounded-full bg-emerald-400"
               style={{ animationDelay: "0.4s" }}
             />
           </span>
@@ -141,24 +136,29 @@ export function AnalyzerApp() {
             {
               title: "SEO",
               body: "Titles, meta, structure, and content signals search engines rely on.",
+              tone: "text-teal-700 bg-teal-50 ring-teal-100",
             },
             {
               title: "AEO",
               body: "Answer-ready pages with clear Q&A patterns and snippet-friendly layout.",
+              tone: "text-cyan-700 bg-cyan-50 ring-cyan-100",
             },
             {
               title: "GEO",
               body: "Structured data, AI crawl access, and trust signals for generative engines.",
+              tone: "text-emerald-700 bg-emerald-50 ring-emerald-100",
             },
           ].map((item) => (
             <div
               key={item.title}
               className="glass-panel rounded-2xl px-4 py-4 text-left"
             >
-              <div className="font-mono-nums text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-600">
+              <div
+                className={`inline-flex rounded-md px-2 py-0.5 font-mono-nums text-[11px] font-semibold uppercase tracking-[0.16em] ring-1 ${item.tone}`}
+              >
                 {item.title}
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
                 {item.body}
               </p>
             </div>
@@ -178,7 +178,7 @@ export function AnalyzerApp() {
                   href={result.finalUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-1 block truncate text-base font-semibold text-slate-900 hover:text-indigo-700"
+                  className="mt-1 block truncate text-base font-semibold text-slate-900 hover:text-teal-700"
                 >
                   {result.finalUrl}
                 </a>

@@ -1,9 +1,9 @@
 import type { AnalyzeResult } from "@/lib/types";
 
 function tagClass(tip: string) {
-  if (/\[SEO\]/i.test(tip)) return "bg-indigo-100 text-indigo-700";
-  if (/\[AEO\]/i.test(tip)) return "bg-violet-100 text-violet-700";
-  if (/\[GEO\]/i.test(tip)) return "bg-sky-100 text-sky-700";
+  if (/\[SEO\]/i.test(tip)) return "bg-teal-100 text-teal-800";
+  if (/\[AEO\]/i.test(tip)) return "bg-cyan-100 text-cyan-800";
+  if (/\[GEO\]/i.test(tip)) return "bg-emerald-100 text-emerald-800";
   return "bg-slate-100 text-slate-600";
 }
 
@@ -24,9 +24,9 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
         ].slice(0, 8);
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-5 sm:p-6 shadow-sm">
+    <section className="relative overflow-hidden rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 via-white to-cyan-50 p-5 sm:p-6 shadow-sm">
       <div
-        className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-indigo-200/30 blur-3xl"
+        className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-200/25 blur-3xl"
         aria-hidden
       />
       <div className="relative mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -38,7 +38,7 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
             Prioritized fixes based on your audit
           </p>
         </div>
-        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700 ring-1 ring-indigo-100">
+        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-800 ring-1 ring-teal-100">
           {result.aiSource === "huggingface" ? "AI + rules" : "Rule-based"}
         </span>
       </div>
@@ -55,7 +55,7 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
           return (
             <li
               key={`${i}-${tip.slice(0, 24)}`}
-              className="flex gap-3 rounded-xl bg-white/90 px-3.5 py-3 ring-1 ring-indigo-50/80"
+              className="flex gap-3 rounded-xl bg-white/90 px-3.5 py-3 ring-1 ring-teal-50/90"
             >
               <span className="font-mono-nums flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-semibold text-white">
                 {i + 1}
