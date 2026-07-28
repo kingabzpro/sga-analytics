@@ -21,10 +21,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Per-check breakdowns, AI-written recommendations, and a page-signals snapshot.
 
 Open-source checks via **cheerio**, **seord**, **robots-parser**. AI tips via
-**Fireworks** (model `deepseek-ai/DeepSeek-V4-Flash`, through
-`@huggingface/inference`). Domain Rating via **Open PageRank** when a key is set,
-else a heuristic on-page estimate. Everything works with **zero env config** via
-graceful fallbacks.
+**Mistral** (model `mistral-medium-latest`, through `@mistralai/mistralai`).
+Domain Rating via **Open PageRank** when a key is set, else a heuristic on-page
+estimate. Everything works with **zero env config** via graceful fallbacks.
 
 ## Stack
 
@@ -58,7 +57,7 @@ lib/
   score-aeo.ts           8 checks.
   score-geo.ts           9 checks.
   score-speed.ts         8 checks.
-  ai-recommendations.ts  Fireworks/HF call, env-gated, timeout race, rule fallback.
+  ai-recommendations.ts  Mistral call, env-gated, timeout race, rule fallback.
   domain-rating.ts       Open PageRank call, env-gated, heuristic fallback. Never throws.
   fetch-page.ts          outbound fetch (HTML/robots/sitemap/llms) + SSRF guard.
   extract.ts             cheerio signal extraction -> PageSignals.
@@ -77,7 +76,8 @@ lib/
   (`OVERALL_WEIGHTS` in `analyze.ts`, default SEO 35 / AEO 25 / GEO 20 / Speed
   20). **Domain Rating is excluded** — it's off-page.
 - **External calls are env-gated with graceful fallback + a `source`
-  discriminator** (`aiSource: "huggingface"|"rules"`,
+  discriminator** (`aiSource: "huggingface"|"rules"` — note the value is
+  historical; it now means "Mistral-backed" not literally HuggingFace;
   `domainRating.source: "openpagerank"|"heuristic"`). Never let them throw up to
   the route handler; degrade to a rule/heuristic result. This is the template for
   any new integration.
@@ -92,9 +92,9 @@ lib/
 
 | Variable | Purpose |
 |----------|---------|
-| `HF_TOKEN` / `HF_API_TOKEN` | Hugging Face token for AI tips (rule-based fallback otherwise) |
-| `FIREWORKS_API_KEY` | Fireworks key (`fw_...`); takes priority over `HF_TOKEN` for AI tips |
+| `MISTRAL_API_KEY` | Mistral key for AI tips via `mistral-medium-latest` (rule-based fallback otherwise) |
 | `OPEN_PAGE_RANK_API_KEY` | Open PageRank key (`opr_live_...`) for an authoritative Domain Rating (heuristic estimate otherwise) |
+| `HF_TOKEN` / `FIREWORKS_API_KEY` | Legacy — no longer used since the switch to Mistral; kept for reference |
 
 Never commit real secrets. Only `.env.example` is tracked.
 
@@ -115,3 +115,17 @@ Never commit real secrets. Only `.env.example` is tracked.
     progress bars + staggered rows. New `components/motion-helpers.tsx`.
   - Verified: `tsc`, `eslint`, `next build` all pass; live `/api/analyze` of
     `example.com` returns partial-credit scores + a heuristic Domain Rating.
+- **2026-07-29 (phase 2)** — AI model + copy fixes.
+  - **Switched AI tips to Mistral** (`@mistralai/mistralai`, `mistral-medium-latest`,
+    `MISTRAL_API_KEY`). Reason: the previously-tried `poolside/Laguna-S-2.1:featherless-ai`
+    cold-started past every timeout and threw provider HTTP errors on real audit
+    prompts — every analysis hung ~45s then fell back to rules. Mistral answers a
+    full audit prompt in ~5s with clean `VERDICT:` / `[TAG]` output. DeepSeek-V4-Flash
+    on Fireworks was the prior working model. `@huggingface/inference` import removed.
+  - Hardened AI tip parsing (`normalizeTip`) and the component `splitTip` so
+    malformed output (`SEO: issue -> action: fix`) renders as clean tagged tips
+    instead of raw text; summary filter now drops echoed prompt placeholders.
+  - Dropped "Speed" from the hero title/subtitle and the empty-state card grid
+    (now 3 cards: SEO/AEO/GEO) to match the nav and trim copy.
+  - Verified: live `/api/analyze` of `abid.work` now returns `aiSource: huggingface`
+    (real Mistral tips) in ~5.6s (was 49.7s → rules). `tsc`/`eslint`/`next build` pass.

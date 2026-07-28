@@ -56,12 +56,11 @@ export function AnalyzerApp() {
         </p>
         <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
           Score any site for{" "}
-          <span className="text-brand-gradient">SEO, AEO, GEO &amp; Speed</span>
+          <span className="text-brand-gradient">SEO, AEO &amp; GEO</span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-600 sm:text-base">
-          Paste a URL to audit on-page SEO, answer-engine readiness,
-          generative-engine signals, and page performance, plus practical ways
-          to improve.
+          Paste a URL to audit on-page SEO, answer-engine, and generative-engine
+          signals — plus practical ways to improve.
         </p>
       </header>
 
@@ -133,7 +132,7 @@ export function AnalyzerApp() {
       ) : null}
 
       {!result && !loading && !error ? (
-        <div className="mx-auto mb-4 grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto mb-4 grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
             {
               title: "SEO",
@@ -149,11 +148,6 @@ export function AnalyzerApp() {
               title: "GEO",
               body: "Structured data, AI crawl access, and trust signals for generative engines.",
               tone: "text-emerald-700 bg-emerald-50 ring-emerald-100",
-            },
-            {
-              title: "Speed",
-              body: "Response time, page weight, render-blocking resources, and image load.",
-              tone: "text-amber-700 bg-amber-50 ring-amber-100",
             },
           ].map((item) => (
             <div
@@ -312,7 +306,7 @@ export function AnalyzerApp() {
         <p className="text-xs leading-relaxed text-slate-400">
           Open-source checks with cheerio, seord, and robots-parser
           {result?.aiSource === "huggingface"
-            ? ", plus DeepSeek-V4-Flash on Fireworks"
+            ? ", plus mistral-medium"
             : ""}
           {result?.domainRating.source === "openpagerank"
             ? " · domain rating via Open PageRank"

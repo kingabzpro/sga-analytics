@@ -16,14 +16,14 @@ Paste a URL → get scores, check breakdowns, and improvement tips.
 
 The on-page **Overall** score is a weighted blend of SEO / AEO / GEO / Speed (Domain Rating is shown separately as an off-page metric). Scores use continuous partial credit, so a "nearly good" signal earns partial credit instead of zero.
 
-Open-source stack: **cheerio**, **seord**, **robots-parser**. Optional AI tips via **Hugging Face Inference / Fireworks**. Interactive stats via **motion**.
+Open-source stack: **cheerio**, **seord**, **robots-parser**. Optional AI tips via **Mistral** (`mistral-medium-latest`). Interactive stats via **motion**.
 
 ## Quick start
 
 ```bash
 npm install
 cp .env.example .env.local
-# optional: set HF_TOKEN (or FIREWORKS_API_KEY) for AI-written recommendations
+# optional: set MISTRAL_API_KEY for AI-written recommendations
 
 npm run dev
 ```
@@ -44,18 +44,17 @@ Returns overall + SEO/AEO/GEO scores, checks, and recommendations.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `HF_TOKEN` | No | HF or Fireworks API key for AI tips |
-| `FIREWORKS_API_KEY` | No | Optional; used instead of `HF_TOKEN` if set |
+| `MISTRAL_API_KEY` | No | Mistral API key for AI tips (`mistral-medium-latest`) |
 | `OPEN_PAGE_RANK_API_KEY` | No | Open PageRank key (`opr_live_...`) for an authoritative Domain Rating |
 
-**Model:** `deepseek-ai/DeepSeek-V4-Flash` via provider `fireworks-ai` (`@huggingface/inference`).
+**Model:** `mistral-medium-latest` via `@mistralai/mistralai`.
 
 Without any keys, the app still works — AI tips fall back to rule-based, and Domain Rating uses a rough on-page estimate.
 
 ## Deploy (Vercel)
 
 ```bash
-vercel env add HF_TOKEN production --value "<token>" --yes --force --sensitive
+vercel env add MISTRAL_API_KEY production --value "<token>" --yes --force --sensitive
 vercel --prod
 ```
 

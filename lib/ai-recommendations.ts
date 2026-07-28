@@ -1,9 +1,12 @@
-import { InferenceClient } from "@huggingface/inference";
+import { Mistral } from "@mistralai/mistralai";
 import type { AnalyzeResult, CategoryScore } from "./types";
 
-const MODEL = "deepseek-ai/DeepSeek-V4-Flash";
-const PROVIDER = "fireworks-ai" as const;
-const AI_TIMEOUT_MS = 45000;
+// AI tips via Mistral (`@mistralai/mistralai`). mistral-medium-latest answers a
+// real audit prompt in ~5s with clean VERDICT/[TAG] output. Falls back to
+// rule-based tips if no key is set or the call fails/slow — the AI text is an
+// enhancement, never a blocker for the analysis itself.
+const MODEL = "mistral-medium-latest";
+const AI_TIMEOUT_MS = 20000;
 
 export type AiAdvice = {
   summary: string | null;
@@ -36,45 +39,6 @@ function ruleFallback(
   };
 }
 
-function extractMessageText(message: unknown): string {
-  if (!message || typeof message !== "object") return "";
-  const m = message as Record<string, unknown>;
-
-  const fromContent = (raw: unknown): string => {
-    if (typeof raw === "string") return raw;
-    if (Array.isArray(raw)) {
-      return raw
-        .map((part: unknown) => {
-          if (typeof part === "string") return part;
-          if (part && typeof part === "object" && "text" in part) {
-            return String((part as { text?: string }).text || "");
-          }
-          return "";
-        })
-        .join("\n");
-    }
-    return "";
-  };
-
-  const content = fromContent(m.content).trim();
-  if (content) return content;
-
-  // Reasoning models may only populate reasoning_content
-  const reasoning =
-    typeof m.reasoning_content === "string" ? m.reasoning_content : "";
-  if (!reasoning) return "";
-
-  // Prefer the final draft after VERDICT / Output markers
-  const markers = ["VERDICT:", "[Output]", "Output:", "Final answer:"];
-  let bestIdx = -1;
-  for (const marker of markers) {
-    const idx = reasoning.lastIndexOf(marker);
-    if (idx > bestIdx) bestIdx = idx;
-  }
-  if (bestIdx >= 0) return reasoning.slice(bestIdx).trim();
-
-  return reasoning.trim();
-}
 
 /**
  * Normalize a single AI tip line into a clean `[TAG] body` string.
@@ -205,11 +169,8 @@ export async function generateAiAdvice(input: {
     input.speed,
     input.overallScore
   );
-  // Fireworks key (fw_...) preferred; HF token also works via fireworks-ai provider
-  const token =
-    process.env.FIREWORKS_API_KEY ||
-    process.env.HF_TOKEN ||
-    process.env.HF_API_TOKEN;
+  // Mistral needs its own key. The HF/Fireworks keys can't reach Mistral's API.
+  const token = process.env.MISTRAL_API_KEY;
 
   if (!token) {
     return fallback;
@@ -250,14 +211,13 @@ VERDICT: <one plain sentence about the site>
 Rules: use real advice from the failed checks; do not copy placeholders; each line must be a complete actionable tip. No HTML.`;
 
   try {
-    const client = new InferenceClient(token);
+    const client = new Mistral({ apiKey: token });
 
     const result = await Promise.race([
-      client.chatCompletion({
-        provider: PROVIDER,
+      client.chat.complete({
         model: MODEL,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 800,
+        maxTokens: 800,
         temperature: 0.3,
       }),
       new Promise<never>((_, reject) =>
@@ -265,7 +225,22 @@ Rules: use real advice from the failed checks; do not copy placeholders; each li
       ),
     ]);
 
-    const content = extractMessageText(result.choices?.[0]?.message);
+    const raw = result?.choices?.[0]?.message?.content;
+    // content can be a string or an array of content parts; normalize to text
+    const content =
+      typeof raw === "string"
+        ? raw
+        : Array.isArray(raw)
+          ? raw
+              .map((p) =>
+                typeof p === "string"
+                  ? p
+                  : "text" in p
+                    ? (p.text ?? "")
+                    : ""
+              )
+              .join("\n")
+          : "";
     if (!content.trim()) return fallback;
 
     const parsed = parseAiText(content);
