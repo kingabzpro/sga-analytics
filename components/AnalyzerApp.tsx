@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "motion/react";
 import type { AnalyzeResult } from "@/lib/types";
 import { Logo } from "./Logo";
 import { ScoreCards } from "./ScoreCards";
@@ -55,11 +56,12 @@ export function AnalyzerApp() {
         </p>
         <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
           Score any site for{" "}
-          <span className="text-brand-gradient">SEO, AEO &amp; GEO</span>
+          <span className="text-brand-gradient">SEO, AEO, GEO &amp; Speed</span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-600 sm:text-base">
-          Paste a URL to audit on-page SEO, answer-engine readiness, and
-          generative-engine signals, plus practical ways to improve.
+          Paste a URL to audit on-page SEO, answer-engine readiness,
+          generative-engine signals, and page performance, plus practical ways
+          to improve.
         </p>
       </header>
 
@@ -131,7 +133,7 @@ export function AnalyzerApp() {
       ) : null}
 
       {!result && !loading && !error ? (
-        <div className="mx-auto mb-4 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mx-auto mb-4 grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
               title: "SEO",
@@ -147,6 +149,11 @@ export function AnalyzerApp() {
               title: "GEO",
               body: "Structured data, AI crawl access, and trust signals for generative engines.",
               tone: "text-emerald-700 bg-emerald-50 ring-emerald-100",
+            },
+            {
+              title: "Speed",
+              body: "Response time, page weight, render-blocking resources, and image load.",
+              tone: "text-amber-700 bg-amber-50 ring-amber-100",
             },
           ].map((item) => (
             <div
@@ -167,7 +174,12 @@ export function AnalyzerApp() {
       ) : null}
 
       {result ? (
-        <div className="space-y-6 animate-[fadeIn_0.35s_ease]">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="space-y-6"
+        >
           <div className="glass-panel rounded-2xl p-5 sm:p-6">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
@@ -185,7 +197,8 @@ export function AnalyzerApp() {
                 <p className="mt-1 font-mono-nums text-xs text-slate-500">
                   {new Date(result.analyzedAt).toLocaleString()} ·{" "}
                   {result.signals.wordCount} words · {result.signals.loadTimeMs}
-                  ms load
+                  ms load · {(result.signals.htmlSizeBytes / 1024).toFixed(0)}{" "}
+                  KB
                 </p>
               </div>
             </div>
@@ -194,10 +207,15 @@ export function AnalyzerApp() {
 
           <Recommendations result={result} />
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <CheckList title="SEO checks" category={result.seo} kind="SEO" />
             <CheckList title="AEO checks" category={result.aeo} kind="AEO" />
             <CheckList title="GEO checks" category={result.geo} kind="GEO" />
+            <CheckList
+              title="Speed checks"
+              category={result.speed}
+              kind="Speed"
+            />
           </div>
 
           <details className="glass-panel group rounded-2xl p-5 text-sm">
@@ -242,6 +260,31 @@ export function AnalyzerApp() {
                   llms.txt: {result.signals.hasLlmsTxt ? "yes" : "no"}
                 </dd>
               </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Page weight
+                </dt>
+                <dd className="mt-1 font-mono-nums text-slate-800">
+                  {(result.signals.htmlSizeBytes / 1024).toFixed(1)} KB HTML ·{" "}
+                  {result.signals.loadTimeMs} ms response
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  Domain rating
+                </dt>
+                <dd className="mt-1 font-mono-nums text-slate-800">
+                  {result.domainRating.score}/100 ·{" "}
+                  {result.domainRating.source === "openpagerank"
+                    ? `Open PageRank (${result.domainRating.rawRank?.toFixed(1) ?? "—"}/10`
+                    : "heuristic estimate"}
+                  {result.domainRating.source === "openpagerank" &&
+                  result.domainRating.globalRank !== null
+                    ? `, rank #${result.domainRating.globalRank}`
+                    : ""}
+                  {result.domainRating.source === "openpagerank" ? ")" : ""}
+                </dd>
+              </div>
               <div className="sm:col-span-2">
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                   AI bots (robots.txt)
@@ -262,7 +305,7 @@ export function AnalyzerApp() {
               </div>
             </dl>
           </details>
-        </div>
+        </motion.div>
       ) : null}
 
       <footer className="mt-14 border-t border-slate-200/70 pt-6 text-center">
@@ -270,6 +313,9 @@ export function AnalyzerApp() {
           Open-source checks with cheerio, seord, and robots-parser
           {result?.aiSource === "huggingface"
             ? ", plus DeepSeek-V4-Flash on Fireworks"
+            : ""}
+          {result?.domainRating.source === "openpagerank"
+            ? " · domain rating via Open PageRank"
             : ""}
           .
         </p>

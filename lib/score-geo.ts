@@ -1,5 +1,5 @@
 import type { CategoryScore, CheckResult, PageSignals } from "./types";
-import { buildCategory } from "./score-utils";
+import { buildCategory, clamp01, ramp } from "./score-utils";
 
 export function scoreGeo(signals: PageSignals): CategoryScore {
   const checks: CheckResult[] = [];
@@ -58,6 +58,8 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     id: "citations",
     label: "Outbound citation links",
     passed: externalLinks.length >= 2,
+    // full at 5+ external links, ramp from 0
+    partialScore: clamp01(ramp(externalLinks.length, [0, 5])),
     weight: 12,
     detail: `${externalLinks.length} external link(s) (citations help generative engines)`,
   });

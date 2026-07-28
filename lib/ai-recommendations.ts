@@ -15,12 +15,14 @@ function ruleFallback(
   seo: CategoryScore,
   aeo: CategoryScore,
   geo: CategoryScore,
+  speed: CategoryScore,
   overall: number
 ): AiAdvice {
   const tips = [
     ...seo.recommendations.map((t) => `[SEO] ${t}`),
     ...aeo.recommendations.map((t) => `[AEO] ${t}`),
     ...geo.recommendations.map((t) => `[GEO] ${t}`),
+    ...speed.recommendations.map((t) => `[SPD] ${t}`),
   ].slice(0, 8);
 
   return {
@@ -74,6 +76,64 @@ function extractMessageText(message: unknown): string {
   return reasoning.trim();
 }
 
+/**
+ * Normalize a single AI tip line into a clean `[TAG] body` string.
+ * Handles the formats the model actually emits, not just the requested one:
+ *   "[SEO] Add a title"              -> "[SEO] Add a title"
+ *   "SEO: Add a title"               -> "[SEO] Add a title"
+ *   "SEO: Missing title -> action: Add a title"  -> "[SEO] Add a title"
+ *   "1. SEO: foo -> bar"             -> "[SEO] bar"
+ * Returns null when the line isn't a usable tip (too short, or a template echo).
+ */
+function normalizeTip(line: string): string | null {
+  let s = line.trim();
+
+  // strip leading list markers / numbering
+  s = s.replace(/^\s*(?:[-*•]|\d+[.)])\s*/i, "");
+  // strip a leading "fix:" prefix
+  s = s.replace(/^fix:\s*/i, "");
+
+  // Extract category tag: either "[SEO]" or "SEO:" at the start
+  const tagMatch = s.match(/^\[?(SEO|AEO|GEO|SPD)\]?\s*[:\-–]?\s*/i);
+  let category: string | null = null;
+  if (tagMatch) {
+    category = tagMatch[1].toUpperCase();
+    s = s.slice(tagMatch[0].length).trim();
+  }
+
+  // If the model wrote "issue -> action: fix" or "issue -> fix", keep only the
+  // actionable part (after the arrow), which is the actual recommendation.
+  const arrow = s.split(/\s*->\s*|—\s*|→\s*/i);
+  if (arrow.length >= 2) {
+    let after = arrow[arrow.length - 1].trim();
+    after = after.replace(/^action\s*:\s*/i, "");
+    if (after.length > 12) s = after;
+  }
+
+  // inline tag somewhere mid-line? hoist it to the front and remove inline
+  const inlineTag = s.match(/\[(SEO|AEO|GEO|SPD)\]/i);
+  if (inlineTag) {
+    category = inlineTag[1].toUpperCase();
+    s = s.replace(/\[(SEO|AEO|GEO|SPD)\]\s*/gi, "").trim();
+  }
+
+  // strip wrapping quotes / markdown bold
+  s = s.replace(/^\*\*?|\*\*?$/g, "").replace(/^["'`]|["'`]$/g, "").trim();
+
+  if (s.length < 12) return null;
+
+  // Drop placeholder / template echoes
+  if (
+    /concrete fix|specific action|SEO\|AEO\|GEO|one (plain )?sentence|plain sentence|placeholder|<[^>]+>/i.test(
+      s
+    )
+  ) {
+    return null;
+  }
+
+  return category ? `[${category}] ${s}` : s;
+}
+
 function parseAiText(text: string): {
   summary: string;
   recommendations: string[];
@@ -90,6 +150,7 @@ function parseAiText(text: string): {
 
   let summary = "";
   const recommendations: string[] = [];
+  const seen = new Set<string>();
 
   for (const line of lines) {
     const verdict = line.match(/^VERDICT:\s*(.+)$/i);
@@ -98,25 +159,13 @@ function parseAiText(text: string): {
       continue;
     }
 
-    const bullet = line.match(
-      /^(?:[-*]|\d+[.)])\s*(?:fix:\s*)?(\[[A-Z]{3}\]\s*.+|[A-Z].+)$/i
-    );
-    if (bullet?.[1] && bullet[1].length > 12) {
-      let tip = bullet[1].trim();
-      tip = tip.replace(/^fix:\s*/i, "");
-      if (!/^\[[A-Z]{3}\]/i.test(tip) && /\[[A-Z]{3}\]/i.test(tip)) {
-        const tag = tip.match(/\[(SEO|AEO|GEO)\]/i)?.[0];
-        if (tag) tip = `${tag.toUpperCase()} ${tip.replace(tag, "").trim()}`;
+    const normalized = normalizeTip(line);
+    if (normalized) {
+      const key = normalized.toLowerCase().slice(0, 48);
+      if (!seen.has(key)) {
+        seen.add(key);
+        recommendations.push(normalized);
       }
-      // Drop placeholder / template echoes
-      if (
-        /concrete fix|specific action|SEO\|AEO\|GEO|plain sentence|placeholder/i.test(
-          tip
-        )
-      ) {
-        continue;
-      }
-      recommendations.push(tip);
       continue;
     }
 
@@ -134,13 +183,6 @@ function parseAiText(text: string): {
     summary = lines.find((l) => l.length > 30)?.slice(0, 280) || "AI analysis complete.";
   }
 
-  if (recommendations.length === 0) {
-    const tagged = cleaned.match(/\[[A-Z]{3}\][^\n.]+[.\n]/gi);
-    if (tagged?.length) {
-      recommendations.push(...tagged.map((t) => t.trim()).slice(0, 5));
-    }
-  }
-
   return {
     summary: summary.slice(0, 400),
     recommendations: recommendations.slice(0, 8),
@@ -153,12 +195,14 @@ export async function generateAiAdvice(input: {
   seo: CategoryScore;
   aeo: CategoryScore;
   geo: CategoryScore;
+  speed: CategoryScore;
   signals: AnalyzeResult["signals"];
 }): Promise<AiAdvice> {
   const fallback = ruleFallback(
     input.seo,
     input.aeo,
     input.geo,
+    input.speed,
     input.overallScore
   );
   // Fireworks key (fw_...) preferred; HF token also works via fireworks-ai provider
@@ -181,12 +225,15 @@ export async function generateAiAdvice(input: {
     ...input.geo.checks
       .filter((c) => !c.passed)
       .map((c) => `GEO: ${c.label}: ${c.detail}`),
+    ...input.speed.checks
+      .filter((c) => !c.passed)
+      .map((c) => `SPD: ${c.label}: ${c.detail}`),
   ]
     .slice(0, 12)
     .join("\n");
 
   const prompt = `Website audit helper. URL: ${input.url}
-Overall score: ${input.overallScore}/100 (SEO ${input.seo.score}, AEO ${input.aeo.score}, GEO ${input.geo.score}).
+Overall score: ${input.overallScore}/100 (SEO ${input.seo.score}, AEO ${input.aeo.score}, GEO ${input.geo.score}, SPD ${input.speed.score}).
 
 Failed checks:
 ${failed || "None"}
@@ -197,8 +244,8 @@ VERDICT: <one plain sentence about the site>
 1. [SEO] <specific action>
 2. [AEO] <specific action>
 3. [GEO] <specific action>
-4. [SEO] <specific action>
-5. [GEO] <specific action>
+4. [SPD] <specific action>
+5. [SEO] <specific action>
 
 Rules: use real advice from the failed checks; do not copy placeholders; each line must be a complete actionable tip. No HTML.`;
 
@@ -224,19 +271,26 @@ Rules: use real advice from the failed checks; do not copy placeholders; each li
     const parsed = parseAiText(content);
     const aiTips = parsed.recommendations.filter((t) => t.length > 20);
 
-    // Prefer AI tips; pad with rule-based tips if the model was brief/truncated
+    // Prefer AI tips; pad with rule-based tips if the model was brief/truncated.
+    // Dedupe case-insensitively by leading substring so we never show near-dupes.
     const merged: string[] = [...aiTips];
+    const seenKeys = new Set(
+      aiTips.map((t) => t.toLowerCase().replace(/\W+/g, " ").slice(0, 32))
+    );
     for (const tip of fallback.recommendations) {
       if (merged.length >= 6) break;
-      const key = tip.toLowerCase().slice(0, 40);
-      if (!merged.some((m) => m.toLowerCase().includes(key.slice(0, 24)))) {
+      const key = tip.toLowerCase().replace(/\W+/g, " ").slice(0, 32);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
         merged.push(tip);
       }
     }
 
+    // Catch template echoes that slipped through (e.g. the model literally wrote
+    // "<one sentence summarizing...>" instead of a real verdict).
     const summaryLooksBad =
       !parsed.summary ||
-      /one plain sentence|concrete fix|specific action|SEO\|AEO|```html/i.test(
+      /one (plain )?sentence|summari[sz]ing the site|concrete fix|specific action|SEO\|AEO|```html|<[^>]+>|placeholder/i.test(
         parsed.summary
       );
 

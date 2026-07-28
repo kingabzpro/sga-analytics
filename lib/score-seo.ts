@@ -1,6 +1,6 @@
 import { analyzeSeo } from "seord";
 import type { CategoryScore, CheckResult, PageSignals } from "./types";
-import { buildCategory, clamp } from "./score-utils";
+import { buildCategory, clamp, clamp01, ramp } from "./score-utils";
 
 function pickKeyword(signals: PageSignals): string {
   const fromH1 = signals.h1[0] || "";
@@ -16,14 +16,35 @@ function pickKeyword(signals: PageSignals): string {
   return words.slice(0, Math.min(3, words.length)).join(" ");
 }
 
+/**
+ * Triangular length score: 0 at/below `minLo`, full across the `ideal` band,
+ * tapering back to 0 at/above `maxHi`. Keeps a usable reading while removing
+ * the old binary cliff (e.g. a 66-char title no longer scores 0).
+ */
+function lengthScore(
+  len: number,
+  minLo: number,
+  idealLo: number,
+  idealHi: number,
+  maxHi: number
+): number {
+  if (len <= minLo) return 0;
+  if (len >= maxHi) return 0;
+  if (len >= idealLo && len <= idealHi) return 1;
+  if (len < idealLo) return ramp(len, [minLo, idealLo]);
+  return 1 - ramp(len, [idealHi, maxHi]);
+}
+
 export function scoreSeo(signals: PageSignals): CategoryScore {
   const checks: CheckResult[] = [];
 
   const titleLen = signals.title.length;
+  const titlePartial = lengthScore(titleLen, 5, 30, 60, 90);
   checks.push({
     id: "title",
     label: "Title tag",
     passed: titleLen >= 10 && titleLen <= 65,
+    partialScore: clamp01(titlePartial),
     weight: 12,
     detail: titleLen
       ? `Title is ${titleLen} characters`
@@ -31,10 +52,12 @@ export function scoreSeo(signals: PageSignals): CategoryScore {
   });
 
   const metaLen = signals.metaDescription.length;
+  const metaPartial = lengthScore(metaLen, 30, 70, 170, 220);
   checks.push({
     id: "meta-description",
     label: "Meta description",
     passed: metaLen >= 70 && metaLen <= 170,
+    partialScore: clamp01(metaPartial),
     weight: 12,
     detail: metaLen
       ? `Meta description is ${metaLen} characters`
@@ -129,6 +152,7 @@ export function scoreSeo(signals: PageSignals): CategoryScore {
     id: "content-length",
     label: "Sufficient content",
     passed: signals.wordCount >= 200,
+    partialScore: clamp01(ramp(signals.wordCount, [50, 350])),
     weight: 6,
     detail: `${signals.wordCount} words on page`,
   });
@@ -167,16 +191,10 @@ export function scoreSeo(signals: PageSignals): CategoryScore {
     id: "seord-content",
     label: "Content SEO (seord)",
     passed: seordScore >= 60,
+    partialScore: clamp01(seordScore / 100),
     weight: 10,
     detail: seordDetail,
   });
-
-  // Blend seord into score slightly by treating partial credit
-  // (passed is binary; we also fold seord into final via weight pass threshold)
-  // If seord is mid-range, still count partial via adjusting a synthetic check
-  if (seordScore >= 40 && seordScore < 60) {
-    // replace last check with half-weight pass illusion: add partial by boosting score later
-  }
 
   const category = buildCategory(checks, (c) => {
     switch (c.id) {
@@ -209,7 +227,5 @@ export function scoreSeo(signals: PageSignals): CategoryScore {
     }
   });
 
-  // Soft-blend seord continuous score into category score
-  const blended = Math.round(category.score * 0.85 + seordScore * 0.15);
-  return { ...category, score: clamp(blended) };
+  return category;
 }

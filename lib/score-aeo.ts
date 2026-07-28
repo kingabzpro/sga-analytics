@@ -1,5 +1,5 @@
 import type { CategoryScore, CheckResult, PageSignals } from "./types";
-import { buildCategory } from "./score-utils";
+import { buildCategory, clamp01, ramp } from "./score-utils";
 
 const QUESTION_RE =
   /^(\s*)(who|what|when|where|why|how|which|does|do|is|are|can|should|will)\b/i;
@@ -37,10 +37,20 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
 
   const answerLen = signals.firstParagraph.length;
   const conciseAnswer = answerLen >= 40 && answerLen <= 320;
+  // triangular: 0 at 0, full 60-300, taper to 0 by ~500
+  const answerPartial =
+    answerLen <= 0
+      ? 0
+      : answerLen <= 60
+        ? ramp(answerLen, [20, 60])
+        : answerLen <= 300
+          ? 1
+          : 1 - ramp(answerLen, [300, 500]);
   checks.push({
     id: "direct-answer",
     label: "Direct answer near top",
     passed: conciseAnswer,
+    partialScore: clamp01(answerPartial),
     weight: 16,
     detail: answerLen
       ? `First substantial paragraph is ${answerLen} characters`
@@ -93,6 +103,7 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
     id: "enough-depth",
     label: "Answer depth (word count)",
     passed: signals.wordCount >= 300,
+    partialScore: clamp01(ramp(signals.wordCount, [100, 500])),
     weight: 8,
     detail: `${signals.wordCount} words (aim for 300+ for answer engines)`,
   });

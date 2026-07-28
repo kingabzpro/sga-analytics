@@ -11,8 +11,12 @@ Paste a URL → get scores, check breakdowns, and improvement tips.
 | **SEO** | Classic on-page signals + [seord](https://www.npmjs.com/package/seord) content analysis |
 | **AEO** | Answer Engine Optimization (FAQ schema, Q&A headings, snippet structure) |
 | **GEO** | Generative Engine Optimization (JSON-LD, `llms.txt`, AI bot robots, E-E-A-T) |
+| **Speed** | Response time, page weight, render-blocking resources, image load |
+| **Domain Rating** | Off-page backlink authority (via [Open PageRank](https://openpagerank.keywordseverywhere.com) when a key is set, else an on-page estimate) |
 
-Open-source stack: **cheerio**, **seord**, **robots-parser**. Optional AI tips via **Hugging Face Inference**.
+The on-page **Overall** score is a weighted blend of SEO / AEO / GEO / Speed (Domain Rating is shown separately as an off-page metric). Scores use continuous partial credit, so a "nearly good" signal earns partial credit instead of zero.
+
+Open-source stack: **cheerio**, **seord**, **robots-parser**. Optional AI tips via **Hugging Face Inference / Fireworks**. Interactive stats via **motion**.
 
 ## Quick start
 
@@ -42,10 +46,11 @@ Returns overall + SEO/AEO/GEO scores, checks, and recommendations.
 |----------|----------|-------------|
 | `HF_TOKEN` | No | HF or Fireworks API key for AI tips |
 | `FIREWORKS_API_KEY` | No | Optional; used instead of `HF_TOKEN` if set |
+| `OPEN_PAGE_RANK_API_KEY` | No | Open PageRank key (`opr_live_...`) for an authoritative Domain Rating |
 
 **Model:** `deepseek-ai/DeepSeek-V4-Flash` via provider `fireworks-ai` (`@huggingface/inference`).
 
-Without a token, the app still works using rule-based tips.
+Without any keys, the app still works — AI tips fall back to rule-based, and Domain Rating uses a rough on-page estimate.
 
 ## Deploy (Vercel)
 
