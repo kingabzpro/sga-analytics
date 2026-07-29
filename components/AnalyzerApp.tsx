@@ -5,7 +5,6 @@ import { motion } from "motion/react";
 import type { AnalyzeResult } from "@/lib/types";
 import { Logo } from "./Logo";
 import { ScoreCards } from "./ScoreCards";
-import { CheckList } from "./CheckList";
 import { Recommendations } from "./Recommendations";
 
 export function AnalyzerApp() {
@@ -200,17 +199,6 @@ export function AnalyzerApp() {
           </div>
 
           <Recommendations result={result} />
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <CheckList title="SEO checks" category={result.seo} kind="SEO" />
-            <CheckList title="AEO checks" category={result.aeo} kind="AEO" />
-            <CheckList title="GEO checks" category={result.geo} kind="GEO" />
-            <CheckList
-              title="Speed checks"
-              category={result.speed}
-              kind="Speed"
-            />
-          </div>
 
           <details className="glass-panel group rounded-2xl p-5 text-sm">
             <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-slate-800">

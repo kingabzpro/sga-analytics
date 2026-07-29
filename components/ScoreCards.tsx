@@ -1,26 +1,15 @@
 "use client";
 
-import { motion } from "motion/react";
-import type { AnalyzeResult, DomainRating } from "@/lib/types";
-import {
-  AnimatedRing,
-  CountUp,
-  cardContainer,
-  cardItem,
-} from "./motion-helpers";
+import { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import type { AnalyzeResult, CategoryScore, DomainRating } from "@/lib/types";
+import { AnimatedRing, CountUp } from "./motion-helpers";
 
 function ringColor(score: number) {
   if (score >= 80) return "#0d9488";
   if (score >= 60) return "#0891b2";
   if (score >= 40) return "#f59e0b";
   return "#e11d48";
-}
-
-function tint(score: number) {
-  if (score >= 80) return "from-teal-50/90 to-white";
-  if (score >= 60) return "from-cyan-50/90 to-white";
-  if (score >= 40) return "from-amber-50/90 to-white";
-  return "from-rose-50/80 to-white";
 }
 
 function labelColor(score: number) {
@@ -30,52 +19,14 @@ function labelColor(score: number) {
   return "text-rose-700";
 }
 
-function ScoreRing({
-  label,
-  score,
-  subtitle,
-  featured = false,
-}: {
-  label: string;
-  score: number;
-  subtitle?: string;
-  featured?: boolean;
-}) {
-  const size = featured ? 116 : 96;
-  const stroke = featured ? 9 : 8;
+type TabKey = "SEO" | "AEO" | "GEO" | "Speed";
 
-  return (
-    <motion.div
-      variants={cardItem}
-      whileHover={{ y: -4 }}
-      className={`score-card flex flex-col items-center rounded-2xl bg-gradient-to-b p-4 sm:p-5 ${tint(score)}`}
-    >
-      <AnimatedRing
-        value={score}
-        size={size}
-        stroke={stroke}
-        color={ringColor(score)}
-      >
-        <CountUp
-          value={score}
-          className={`font-mono-nums font-semibold tracking-tight text-slate-900 ${
-            featured ? "text-3xl" : "text-2xl"
-          }`}
-        />
-      </AnimatedRing>
-      <div
-        className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] ${labelColor(score)}`}
-      >
-        {label}
-      </div>
-      {subtitle ? (
-        <div className="mt-1 text-center text-xs leading-snug text-slate-500">
-          {subtitle}
-        </div>
-      ) : null}
-    </motion.div>
-  );
-}
+const TABS: { key: TabKey; label: string; accent: string; chip: string }[] = [
+  { key: "SEO", label: "SEO", accent: "teal", chip: "bg-teal-500" },
+  { key: "AEO", label: "AEO", accent: "cyan", chip: "bg-cyan-500" },
+  { key: "GEO", label: "GEO", accent: "emerald", chip: "bg-emerald-500" },
+  { key: "Speed", label: "Speed", accent: "amber", chip: "bg-amber-500" },
+];
 
 function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -83,62 +34,132 @@ function compact(n: number): string {
   return `${n}`;
 }
 
-/**
- * Domain Rating hero card. Visually distinct from the on-page rings: a wider
- * accent band and the raw provider metrics. Always shows whether the number is
- * authoritative (Open PageRank) or a rough on-page estimate.
- */
-function DomainRatingCard({ rating }: { rating: DomainRating }) {
+/** Hero card: the Overall score as a large animated ring. */
+function OverallHero({ result }: { result: AnalyzeResult }) {
+  const score = result.overallScore;
+  return (
+    <div className="glass-panel relative flex flex-col items-center gap-6 overflow-hidden rounded-2xl p-6 sm:flex-row sm:items-center sm:gap-8 sm:p-7">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-12 -top-12 h-48 w-48 rounded-full opacity-20 blur-3xl"
+        style={{ background: ringColor(score) }}
+      />
+      <AnimatedRing value={score} size={132} stroke={10} color={ringColor(score)}>
+        <CountUp
+          value={score}
+          className="font-mono-nums text-4xl font-semibold tracking-tight text-slate-900"
+        />
+      </AnimatedRing>
+      <div className="min-w-0 text-center sm:text-left">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Overall score
+        </div>
+        <div
+          className={`mt-1 font-display text-2xl font-semibold ${labelColor(score)}`}
+        >
+          {score >= 80
+            ? "Strong"
+            : score >= 60
+              ? "Decent"
+              : score >= 40
+                ? "Needs work"
+                : "Weak"}
+        </div>
+        <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-500">
+          Weighted blend of SEO, AEO, GEO, and Speed. Explore each area in the
+          tabs below.
+        </p>
+        {/* mini category chips */}
+        <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
+          {(
+            [
+              ["SEO", result.seo.score],
+              ["AEO", result.aeo.score],
+              ["GEO", result.geo.score],
+              ["Speed", result.speed.score],
+            ] as [string, number][]
+          ).map(([label, s]) => (
+            <span
+              key={label}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200"
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: ringColor(s) }}
+                aria-hidden
+              />
+              <span className="font-mono-nums font-semibold text-slate-800">
+                {s}
+              </span>
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The Domain Rating row, kept compact and full-width below the hero. */
+function DomainRatingStrip({ rating }: { rating: DomainRating }) {
   const live = rating.source === "openpagerank";
   const score = rating.score;
   const color = ringColor(score);
 
+  const stats: { label: string; value: string; hint?: string }[] = [
+    {
+      label: "OPR",
+      value: rating.rawRank !== null ? rating.rawRank.toFixed(1) : "—",
+      hint: "/10",
+    },
+    {
+      label: "Global rank",
+      value: rating.globalRank !== null ? `#${compact(rating.globalRank)}` : "—",
+    },
+    {
+      label: "Ref. domains",
+      value:
+        rating.referringDomains !== null
+          ? compact(rating.referringDomains)
+          : "—",
+    },
+  ];
+
   return (
-    <motion.div
-      variants={cardItem}
-      whileHover={{ y: -4 }}
-      className="score-card relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white sm:p-6"
-    >
+    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white sm:flex-row sm:items-center sm:gap-6 sm:p-6">
       <div
         aria-hidden
         className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-25 blur-2xl"
         style={{ background: color }}
       />
-      <div className="relative flex items-center justify-between">
+      <div className="relative flex items-center gap-4 sm:min-w-[210px]">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-            Domain Rating
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+              Domain Rating
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] ring-1 ${
+                live
+                  ? "bg-teal-400/15 text-teal-200 ring-teal-300/30"
+                  : "bg-amber-400/15 text-amber-200 ring-amber-300/30"
+              }`}
+            >
+              {live ? "Open PageRank" : "Estimate"}
+            </span>
           </div>
-          <div className="mt-1 text-[11px] text-slate-400">
-            Off-page authority · backlinks
+          <div className="mt-1 flex items-end gap-1.5">
+            <CountUp
+              value={score}
+              className="font-mono-nums text-4xl font-semibold leading-none tracking-tight"
+            />
+            <span className="mb-1 text-sm font-medium text-slate-400">/100</span>
           </div>
         </div>
-        <span
-          className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
-            live
-              ? "bg-teal-400/15 text-teal-200 ring-teal-300/30"
-              : "bg-amber-400/15 text-amber-200 ring-amber-300/30"
-          }`}
-          title={
-            live
-              ? "Fetched live from Open PageRank"
-              : "Rough estimate from on-page signals — set OPEN_PAGE_RANK_API_KEY for a real score"
-          }
-        >
-          {live ? "Open PageRank" : "Estimate"}
-        </span>
       </div>
 
-      <div className="relative mt-5 flex items-end gap-3">
-        <CountUp
-          value={score}
-          className="font-mono-nums text-6xl font-semibold leading-none tracking-tight"
-        />
-        <span className="mb-1 text-lg font-medium text-slate-400">/100</span>
-      </div>
-
-      {/* progress bar */}
-      <div className="relative mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
+      {/* progress bar (mobile) / inline (desktop) */}
+      <div className="relative mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10 sm:mt-0 sm:max-w-[180px]">
         <motion.div
           className="h-full rounded-full"
           style={{ background: color }}
@@ -149,171 +170,248 @@ function DomainRatingCard({ rating }: { rating: DomainRating }) {
         />
       </div>
 
-      <dl className="relative mt-5 grid grid-cols-3 gap-3 border-t border-white/10 pt-4 text-center">
-        <div>
-          <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
-            OPR
-          </dt>
-          <dd className="mt-1 font-mono-nums text-base font-semibold">
-            {rating.rawRank !== null ? rating.rawRank.toFixed(1) : "—"}
-            <span className="text-xs text-slate-400"> /10</span>
-          </dd>
-        </div>
-        <div>
-          <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
-            Global rank
-          </dt>
-          <dd className="mt-1 font-mono-nums text-base font-semibold">
-            {rating.globalRank !== null ? `#${compact(rating.globalRank)}` : "—"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
-            Ref. domains
-          </dt>
-          <dd className="mt-1 font-mono-nums text-base font-semibold">
-            {rating.referringDomains !== null
-              ? compact(rating.referringDomains)
-              : "—"}
-          </dd>
-        </div>
+      <dl className="relative mt-4 grid flex-1 grid-cols-3 gap-2 border-t border-white/10 pt-4 sm:mt-0 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+        {stats.map((s) => (
+          <div key={s.label} className="min-w-0 text-center sm:text-left">
+            <dt className="truncate text-[10px] uppercase tracking-[0.08em] text-slate-400">
+              {s.label}
+            </dt>
+            <dd className="mt-1 font-mono-nums text-base font-semibold">
+              {s.value}
+              {s.hint ? (
+                <span className="text-xs text-slate-400">{s.hint}</span>
+              ) : null}
+            </dd>
+          </div>
+        ))}
       </dl>
-
-      {!live ? (
-        <p className="relative mt-3 text-[11px] leading-relaxed text-slate-400">
-          This is an estimate. Add an Open PageRank API key for an authoritative,
-          backlink-based rating.
-        </p>
-      ) : null}
-    </motion.div>
+    </div>
   );
 }
 
-/** Compact radar chart of the four on-page categories, animated. */
-function CategoryRadar({ result }: { result: AnalyzeResult }) {
-  const size = 220;
-  const cx = size / 2;
-  const cy = size / 2;
-  const radius = 78;
-  const axes = [
-    { key: "SEO", value: result.seo.score, color: "#0d9488" },
-    { key: "AEO", value: result.aeo.score, color: "#0891b2" },
-    { key: "GEO", value: result.geo.score, color: "#10b981" },
-    { key: "Speed", value: result.speed.score, color: "#f59e0b" },
-  ];
+/** A single check row, animated in. */
+function CheckRow({
+  check,
+  accent,
+}: {
+  check: AnalyzeResult["seo"]["checks"][number];
+  accent: string;
+}) {
+  return (
+    <motion.li
+      variants={{
+        hidden: { opacity: 0, x: -10 },
+        show: {
+          opacity: 1,
+          x: 0,
+          transition: { type: "spring" as const, stiffness: 260, damping: 24 },
+        },
+      }}
+      className="flex gap-3 rounded-xl border border-slate-100 bg-white/80 px-3 py-2.5 transition-colors hover:border-teal-200 hover:bg-teal-50/40"
+    >
+      <span
+        className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+          check.passed ? "check-pass" : "check-fail"
+        }`}
+        aria-hidden
+      >
+        {check.passed ? "✓" : "!"}
+      </span>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-slate-800">
+            {check.label}
+          </span>
+          <span className={`h-1.5 w-1.5 rounded-full ${accent}`} aria-hidden />
+        </div>
+        <div className="mt-0.5 text-xs leading-relaxed text-slate-500">
+          {check.detail}
+        </div>
+      </div>
+    </motion.li>
+  );
+}
 
-  const rings = [0.25, 0.5, 0.75, 1];
-  const pointAt = (i: number, frac: number) => {
-    const angle = (Math.PI * 2 * i) / axes.length - Math.PI / 2;
-    return {
-      x: cx + Math.cos(angle) * radius * frac,
-      y: cy + Math.sin(angle) * radius * frac,
-    };
-  };
-
-  const valuePoints = axes.map((a, i) => pointAt(i, Math.min(1, a.value / 100)));
-  const valuePath =
-    valuePoints
-      .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
-      .join(" ") + " Z";
+/** Content for one tab: a category ring + its checks. */
+function TabPanel({
+  title,
+  subtitle,
+  category,
+  accent,
+}: {
+  title: string;
+  subtitle: string;
+  category: CategoryScore;
+  accent: string;
+}) {
+  const passed = category.checks.filter((c) => c.passed).length;
+  const total = category.checks.length;
+  const pct = total > 0 ? Math.round((passed / total) * 100) : 0;
 
   return (
-    <motion.div
-      variants={cardItem}
-      className="score-card flex flex-col items-center rounded-2xl bg-gradient-to-b from-white to-slate-50/60 p-5"
-    >
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-        On-page balance
-      </div>
-      <svg width={size} height={size} className="overflow-visible">
-        {rings.map((f, idx) => (
-          <polygon
-            key={idx}
-            points={axes
-              .map((_, i) => {
-                const p = pointAt(i, f);
-                return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-              })
-              .join(" ")}
-            fill="none"
-            stroke="#e2e8f0"
-            strokeWidth={1}
-          />
-        ))}
-        {axes.map((_, i) => {
-          const p = pointAt(i, 1);
-          return (
-            <line
-              key={i}
-              x1={cx}
-              y1={cy}
-              x2={p.x}
-              y2={p.y}
-              stroke="#e2e8f0"
-              strokeWidth={1}
+    <div className="grid gap-5 lg:grid-cols-5">
+      {/* score summary */}
+      <div className="lg:col-span-2">
+        <div className="glass-panel flex h-full flex-col items-center rounded-2xl p-5">
+          <AnimatedRing
+            value={category.score}
+            size={116}
+            stroke={9}
+            color={ringColor(category.score)}
+          >
+            <CountUp
+              value={category.score}
+              className="font-mono-nums text-3xl font-semibold tracking-tight text-slate-900"
             />
-          );
-        })}
-        <motion.path
-          d={valuePath}
-          fill="rgba(13,148,136,0.14)"
-          stroke="#0d9488"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          initial={{ scale: 0, opacity: 0 }}
-          whileInView={{ scale: 1, opacity: 1 }}
-          viewport={{ once: true, margin: "-40px" }}
-          style={{ transformOrigin: `${cx}px ${cy}px` }}
-          transition={{ type: "spring", stiffness: 120, damping: 16 }}
-        />
-        {axes.map((a, i) => {
-          const p = pointAt(i, 1.16);
-          return (
-            <text
-              key={a.key}
-              x={p.x}
-              y={p.y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              className="fill-slate-600 text-[11px] font-semibold"
-            >
-              {a.key}
-            </text>
-          );
-        })}
-      </svg>
-    </motion.div>
+          </AnimatedRing>
+          <div
+            className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] ${labelColor(category.score)}`}
+          >
+            {title}
+          </div>
+          <div className="mt-1 text-center text-xs text-slate-500">{subtitle}</div>
+          <div className="mt-4 w-full">
+            <div className="mb-1.5 flex justify-between text-[11px] text-slate-500">
+              <span>
+                {passed} of {total} passed
+              </span>
+              <span className="font-mono-nums">{pct}%</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <motion.div
+                className={`h-full rounded-full ${accent}`}
+                initial={{ width: "0%" }}
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* checks */}
+      <div className="lg:col-span-3">
+        <motion.ul
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.04 } } }}
+          className="space-y-2"
+        >
+          {category.checks.map((check) => (
+            <CheckRow key={check.id} check={check} accent={accent} />
+          ))}
+        </motion.ul>
+      </div>
+    </div>
   );
 }
 
 export function ScoreCards({ result }: { result: AnalyzeResult }) {
+  const [active, setActive] = useState<TabKey>("SEO");
+
+  const panel = (() => {
+    switch (active) {
+      case "SEO":
+        return (
+          <TabPanel
+            title="SEO"
+            subtitle="Search engines"
+            category={result.seo}
+            accent="bg-teal-500"
+          />
+        );
+      case "AEO":
+        return (
+          <TabPanel
+            title="AEO"
+            subtitle="Answer engines"
+            category={result.aeo}
+            accent="bg-cyan-500"
+          />
+        );
+      case "GEO":
+        return (
+          <TabPanel
+            title="GEO"
+            subtitle="Generative engines"
+            category={result.geo}
+            accent="bg-emerald-500"
+          />
+        );
+      case "Speed":
+        return (
+          <TabPanel
+            title="Speed"
+            subtitle="Page performance"
+            category={result.speed}
+            accent="bg-amber-500"
+          />
+        );
+    }
+  })();
+
   return (
-    <motion.div
-      variants={cardContainer}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, margin: "-60px" }}
-      className="grid gap-3 sm:gap-4 lg:grid-cols-12"
-    >
-      {/* On-page score rings */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4 lg:col-span-8">
-        <ScoreRing
-          label="Overall"
-          score={result.overallScore}
-          subtitle="Weighted on-page"
-          featured
-        />
-        <ScoreRing label="SEO" score={result.seo.score} subtitle="Search engines" />
-        <ScoreRing label="AEO" score={result.aeo.score} subtitle="Answer engines" />
-        <ScoreRing label="GEO" score={result.geo.score} subtitle="Generative engines" />
-        <ScoreRing label="Speed" score={result.speed.score} subtitle="Performance" />
+    <div className="space-y-4">
+      <OverallHero result={result} />
+      <DomainRatingStrip rating={result.domainRating} />
+
+      {/* Tab bar */}
+      <div className="glass-panel flex gap-1 rounded-2xl p-1.5">
+        {TABS.map((t) => {
+          const isActive = t.key === active;
+          const s =
+            t.key === "SEO"
+              ? result.seo.score
+              : t.key === "AEO"
+                ? result.aeo.score
+                : t.key === "GEO"
+                  ? result.geo.score
+                  : result.speed.score;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActive(t.key)}
+              className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors sm:px-4 ${
+                isActive
+                  ? "text-white"
+                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+              }`}
+            >
+              {isActive && (
+                <motion.span
+                  layoutId="active-tab"
+                  className="absolute inset-0 rounded-xl bg-slate-900"
+                  transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                />
+              )}
+              <span className="relative z-10">{t.label}</span>
+              <span
+                className={`relative z-10 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
+                  isActive
+                    ? "bg-white/20 text-white"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {s}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Domain rating + radar */}
-      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:col-span-4">
-        <DomainRatingCard rating={result.domainRating} />
-        <CategoryRadar result={result} />
-      </div>
-    </motion.div>
+      {/* Active panel with smooth transition between tabs */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={active}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        >
+          {panel}
+        </motion.div>
+      </AnimatePresence>
+    </div>
   );
 }
