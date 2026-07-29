@@ -36,14 +36,14 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
   const drLive = dr.source === "openpagerank";
 
   return (
-    <div className="glass-panel relative grid gap-6 overflow-hidden rounded-2xl p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-8 sm:p-7">
+    <div className="glass-panel relative grid grid-cols-1 gap-5 overflow-hidden rounded-2xl p-6 sm:grid-cols-[auto_1fr] sm:gap-7 sm:p-7">
       <div
         aria-hidden
         className="pointer-events-none absolute -left-12 -top-12 h-48 w-48 rounded-full opacity-20 blur-3xl"
         style={{ background: ringColor(score) }}
       />
       {/* Overall ring */}
-      <div className="mx-auto sm:mx-0">
+      <div className="mx-auto flex items-center sm:mx-0">
         <AnimatedRing value={score} size={132} stroke={10} color={ringColor(score)}>
           <CountUp
             value={score}
@@ -52,75 +52,69 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
         </AnimatedRing>
       </div>
 
-      {/* Verdict + category chips */}
-      <div className="min-w-0 text-center sm:text-left">
-        <div className="flex items-center justify-center gap-2 sm:justify-start">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Overall score
-          </span>
-          <span
-            className={`font-display text-2xl font-semibold ${labelColor(score)}`}
-          >
-            {score >= 80
-              ? "Strong"
-              : score >= 60
-                ? "Decent"
-                : score >= 40
-                  ? "Needs work"
-                  : "Weak"}
-          </span>
-        </div>
-        <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-500">
-          Weighted blend of SEO, AEO, GEO, and Speed. Explore each area in the
-          tabs below.
-        </p>
-        {/* mini category chips */}
-        <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
-          {(
-            [
-              ["SEO", result.seo.score],
-              ["AEO", result.aeo.score],
-              ["GEO", result.geo.score],
-              ["Speed", result.speed.score],
-            ] as [string, number][]
-          ).map(([label, s]) => (
-            <span
-              key={label}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200"
-            >
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: ringColor(s) }}
-                aria-hidden
-              />
-              <span className="font-mono-nums font-semibold text-slate-800">
-                {s}
-              </span>
-              {label}
+      {/* Verdict + DR + category chips — fills the ring's height, no dead space */}
+      <div className="flex min-w-0 flex-col justify-center gap-4 text-center sm:items-start sm:text-left">
+        <div>
+          <div className="flex items-center justify-center gap-2 sm:justify-start">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Overall score
             </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Domain Rating — compact, single number (uses the right-side space) */}
-      <div className="flex items-center justify-center gap-4 border-t border-slate-100 pt-5 sm:flex-col sm:border-l sm:border-t-0 sm:pt-0 sm:pl-6">
-        <div className="text-center sm:text-center">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-            Domain Rating
+            <span
+              className={`font-display text-2xl font-semibold ${labelColor(score)}`}
+            >
+              {score >= 80
+                ? "Strong"
+                : score >= 60
+                  ? "Decent"
+                  : score >= 40
+                    ? "Needs work"
+                    : "Weak"}
+            </span>
           </div>
-          <div className="mt-1 flex items-end justify-center gap-1.5">
+          <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-500">
+            Weighted blend of SEO, AEO, GEO, and Speed. Explore each area in the
+            tabs below.
+          </p>
+        </div>
+
+        {/* Domain Rating + category chips on one row — compact, no empty space */}
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center">
+          <div className="inline-flex items-baseline gap-1.5 rounded-xl bg-white px-3 py-1.5 ring-1 ring-slate-200">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Domain Rating
+            </span>
             <CountUp
               value={dr.score}
-              className={`font-mono-nums text-3xl font-semibold leading-none tracking-tight ${labelColor(dr.score)}`}
+              className={`font-mono-nums text-lg font-semibold ${labelColor(dr.score)}`}
             />
-            <span className="mb-0.5 text-xs text-slate-400">/100</span>
+            <span className="text-[10px] text-slate-400">
+              {drLive ? "OPR" : "est"}
+            </span>
           </div>
-          <div className="mt-1 text-[10px] text-slate-400">
-            {drLive
-              ? "Open PageRank"
-              : dr.rawRank !== null
-                ? `OPR ${dr.rawRank.toFixed(1)}/10`
-                : "estimate"}
+          <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
+            {(
+              [
+                ["SEO", result.seo.score],
+                ["AEO", result.aeo.score],
+                ["GEO", result.geo.score],
+                ["Speed", result.speed.score],
+              ] as [string, number][]
+            ).map(([label, s]) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200"
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: ringColor(s) }}
+                  aria-hidden
+                />
+                <span className="font-mono-nums font-semibold text-slate-800">
+                  {s}
+                </span>
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       </div>
