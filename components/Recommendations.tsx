@@ -1,6 +1,6 @@
 import type { AnalyzeResult } from "@/lib/types";
 
-type Category = "SEO" | "AEO" | "GEO" | "SPD";
+type Category = "SEO" | "AEO" | "GEO" | "SPD" | "DR";
 
 const CATEGORY_META: Record<
   Category,
@@ -34,6 +34,13 @@ const CATEGORY_META: Record<
     badge: "text-amber-700",
     dot: "bg-amber-500",
   },
+  DR: {
+    label: "Domain Rating",
+    rail: "bg-indigo-500",
+    chip: "bg-indigo-100 text-indigo-800",
+    badge: "text-indigo-700",
+    dot: "bg-indigo-500",
+  },
 };
 
 /**
@@ -47,7 +54,7 @@ function splitTip(tip: string): { category: Category | null; body: string } {
   const s = tip.trim();
 
   // Leading "[TAG]" prefix (canonical)
-  const bracket = s.match(/^\[(SEO|AEO|GEO|SPD)\]\s*(.*)$/i);
+  const bracket = s.match(/^\[(SEO|AEO|GEO|SPD|DR)\]\s*(.*)$/i);
   if (bracket) {
     return {
       category: bracket[1].toUpperCase() as Category,
@@ -56,7 +63,7 @@ function splitTip(tip: string): { category: Category | null; body: string } {
   }
 
   // "TAG:" prefix
-  const colon = s.match(/^(SEO|AEO|GEO|SPD)[:\-]\s*(.*)$/i);
+  const colon = s.match(/^(SEO|AEO|GEO|SPD|DR)[:\-]\s*(.*)$/i);
   if (colon) {
     return {
       category: colon[1].toUpperCase() as Category,
@@ -65,11 +72,11 @@ function splitTip(tip: string): { category: Category | null; body: string } {
   }
 
   // Inline tag anywhere
-  const inline = s.match(/\[(SEO|AEO|GEO|SPD)\]/i);
+  const inline = s.match(/\[(SEO|AEO|GEO|SPD|DR)\]/i);
   if (inline) {
     return {
       category: inline[1].toUpperCase() as Category,
-      body: cleanBody(s.replace(/\[(SEO|AEO|GEO|SPD)\]\s*/gi, "")),
+      body: cleanBody(s.replace(/\[(SEO|AEO|GEO|SPD|DR)\]\s*/gi, "")),
     };
   }
 
@@ -93,13 +100,54 @@ function cleanBody(body: string): string {
     .trim();
 }
 
+/** Rule-based Domain Rating improvement tips, derived from the rating source
+ *  and on-page trust signals. Backlinks are off-page, so these are the levers
+ *  a site owner actually controls. */
+function domainRatingTips(result: AnalyzeResult): string[] {
+  const tips: string[] = [];
+  const dr = result.domainRating;
+  const s = result.signals;
+
+  // Content that earns links is the #1 lever
+  tips.push(
+    "Publish original research, data, or unique tools — linkable assets are the fastest path to more referring domains."
+  );
+  // Outreach / PR
+  tips.push(
+    "Do targeted outreach and digital PR: get featured in roundups, guest posts, and industry publications for authoritative backlinks."
+  );
+
+  // If estimate, nudge to set the key for a real number
+  if (dr.source !== "openpagerank") {
+    tips.push(
+      "Connect an Open PageRank key for a real backlink-based rating — this number is a rough on-page estimate."
+    );
+  }
+
+  // On-page trust signals that support authority
+  const externalLinks = s.jsonLdTypes.length; // weak proxy; keep it practical
+  if (!s.hasRobotsTxt) {
+    tips.push(
+      "Publish a robots.txt so crawlers (including backlink checkers) can crawl the site fully."
+    );
+  }
+  if (externalLinks === 0) {
+    tips.push(
+      "Cite authoritative external sources — outbound links to trusted sites support E-E-A-T and discoverability."
+    );
+  }
+
+  return tips.map((t) => `[DR] ${t}`);
+}
+
 function ruleFallbackTips(result: AnalyzeResult): string[] {
   return [
     ...result.seo.recommendations.map((t) => `[SEO] ${t}`),
     ...result.aeo.recommendations.map((t) => `[AEO] ${t}`),
     ...result.geo.recommendations.map((t) => `[GEO] ${t}`),
     ...result.speed.recommendations.map((t) => `[SPD] ${t}`),
-  ].slice(0, 8);
+    ...domainRatingTips(result),
+  ].slice(0, 9);
 }
 
 function CategoryCard({
@@ -162,6 +210,7 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
     AEO: [],
     GEO: [],
     SPD: [],
+    DR: [],
   };
   const untagged: string[] = [];
 
@@ -174,15 +223,15 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
     }
   }
 
-  // Spread any untagged tips evenly across the four categories
+  // Spread any untagged tips evenly across the categories
   if (untagged.length > 0) {
-    const order: Category[] = ["SEO", "AEO", "GEO", "SPD"];
+    const order: Category[] = ["SEO", "AEO", "GEO", "SPD", "DR"];
     untagged.forEach((body, i) => {
       groups[order[i % order.length]].push(body);
     });
   }
 
-  const orderedCategories: Category[] = ["SEO", "AEO", "GEO", "SPD"];
+  const orderedCategories: Category[] = ["SEO", "AEO", "GEO", "SPD", "DR"];
   const visibleGroups = orderedCategories
     .map((c) => ({ category: c, tips: groups[c] }))
     .filter((g) => g.tips.length > 0);

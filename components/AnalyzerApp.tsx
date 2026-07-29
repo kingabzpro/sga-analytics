@@ -251,22 +251,6 @@ export function AnalyzerApp() {
                   {result.signals.loadTimeMs} ms response
                 </dd>
               </div>
-              <div>
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                  Domain rating
-                </dt>
-                <dd className="mt-1 font-mono-nums text-slate-800">
-                  {result.domainRating.score}/100 ·{" "}
-                  {result.domainRating.source === "openpagerank"
-                    ? `Open PageRank (${result.domainRating.rawRank?.toFixed(1) ?? "—"}/10`
-                    : "heuristic estimate"}
-                  {result.domainRating.source === "openpagerank" &&
-                  result.domainRating.globalRank !== null
-                    ? `, rank #${result.domainRating.globalRank}`
-                    : ""}
-                  {result.domainRating.source === "openpagerank" ? ")" : ""}
-                </dd>
-              </div>
               <div className="sm:col-span-2">
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                   AI bots (robots.txt)

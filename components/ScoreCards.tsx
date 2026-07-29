@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import type { AnalyzeResult, CategoryScore, DomainRating } from "@/lib/types";
+import type { AnalyzeResult, CategoryScore } from "@/lib/types";
 import { AnimatedRing, CountUp } from "./motion-helpers";
 
 function ringColor(score: number) {
@@ -28,42 +28,47 @@ const TABS: { key: TabKey; label: string; accent: string; chip: string }[] = [
   { key: "Speed", label: "Speed", accent: "amber", chip: "bg-amber-500" },
 ];
 
-function compact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
-}
-
-/** Hero card: the Overall score as a large animated ring. */
+/** Hero card: the Overall score as a large animated ring, plus the Domain
+ *  Rating number folded in compactly so the empty space is used. */
 function OverallHero({ result }: { result: AnalyzeResult }) {
   const score = result.overallScore;
+  const dr = result.domainRating;
+  const drLive = dr.source === "openpagerank";
+
   return (
-    <div className="glass-panel relative flex flex-col items-center gap-6 overflow-hidden rounded-2xl p-6 sm:flex-row sm:items-center sm:gap-8 sm:p-7">
+    <div className="glass-panel relative grid gap-6 overflow-hidden rounded-2xl p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-8 sm:p-7">
       <div
         aria-hidden
         className="pointer-events-none absolute -left-12 -top-12 h-48 w-48 rounded-full opacity-20 blur-3xl"
         style={{ background: ringColor(score) }}
       />
-      <AnimatedRing value={score} size={132} stroke={10} color={ringColor(score)}>
-        <CountUp
-          value={score}
-          className="font-mono-nums text-4xl font-semibold tracking-tight text-slate-900"
-        />
-      </AnimatedRing>
+      {/* Overall ring */}
+      <div className="mx-auto sm:mx-0">
+        <AnimatedRing value={score} size={132} stroke={10} color={ringColor(score)}>
+          <CountUp
+            value={score}
+            className="font-mono-nums text-4xl font-semibold tracking-tight text-slate-900"
+          />
+        </AnimatedRing>
+      </div>
+
+      {/* Verdict + category chips */}
       <div className="min-w-0 text-center sm:text-left">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-          Overall score
-        </div>
-        <div
-          className={`mt-1 font-display text-2xl font-semibold ${labelColor(score)}`}
-        >
-          {score >= 80
-            ? "Strong"
-            : score >= 60
-              ? "Decent"
-              : score >= 40
-                ? "Needs work"
-                : "Weak"}
+        <div className="flex items-center justify-center gap-2 sm:justify-start">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+            Overall score
+          </span>
+          <span
+            className={`font-display text-2xl font-semibold ${labelColor(score)}`}
+          >
+            {score >= 80
+              ? "Strong"
+              : score >= 60
+                ? "Decent"
+                : score >= 40
+                  ? "Needs work"
+                  : "Weak"}
+          </span>
         </div>
         <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-500">
           Weighted blend of SEO, AEO, GEO, and Speed. Explore each area in the
@@ -96,95 +101,29 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
           ))}
         </div>
       </div>
-    </div>
-  );
-}
 
-/** The Domain Rating row, kept compact and full-width below the hero. */
-function DomainRatingStrip({ rating }: { rating: DomainRating }) {
-  const live = rating.source === "openpagerank";
-  const score = rating.score;
-  const color = ringColor(score);
-
-  const stats: { label: string; value: string; hint?: string }[] = [
-    {
-      label: "OPR",
-      value: rating.rawRank !== null ? rating.rawRank.toFixed(1) : "—",
-      hint: "/10",
-    },
-    {
-      label: "Global rank",
-      value: rating.globalRank !== null ? `#${compact(rating.globalRank)}` : "—",
-    },
-    {
-      label: "Ref. domains",
-      value:
-        rating.referringDomains !== null
-          ? compact(rating.referringDomains)
-          : "—",
-    },
-  ];
-
-  return (
-    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white sm:flex-row sm:items-center sm:gap-6 sm:p-6">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-25 blur-2xl"
-        style={{ background: color }}
-      />
-      <div className="relative flex items-center gap-4 sm:min-w-[210px]">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-              Domain Rating
-            </span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] ring-1 ${
-                live
-                  ? "bg-teal-400/15 text-teal-200 ring-teal-300/30"
-                  : "bg-amber-400/15 text-amber-200 ring-amber-300/30"
-              }`}
-            >
-              {live ? "Open PageRank" : "Estimate"}
-            </span>
+      {/* Domain Rating — compact, single number (uses the right-side space) */}
+      <div className="flex items-center justify-center gap-4 border-t border-slate-100 pt-5 sm:flex-col sm:border-l sm:border-t-0 sm:pt-0 sm:pl-6">
+        <div className="text-center sm:text-center">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            Domain Rating
           </div>
-          <div className="mt-1 flex items-end gap-1.5">
+          <div className="mt-1 flex items-end justify-center gap-1.5">
             <CountUp
-              value={score}
-              className="font-mono-nums text-4xl font-semibold leading-none tracking-tight"
+              value={dr.score}
+              className={`font-mono-nums text-3xl font-semibold leading-none tracking-tight ${labelColor(dr.score)}`}
             />
-            <span className="mb-1 text-sm font-medium text-slate-400">/100</span>
+            <span className="mb-0.5 text-xs text-slate-400">/100</span>
+          </div>
+          <div className="mt-1 text-[10px] text-slate-400">
+            {drLive
+              ? "Open PageRank"
+              : dr.rawRank !== null
+                ? `OPR ${dr.rawRank.toFixed(1)}/10`
+                : "estimate"}
           </div>
         </div>
       </div>
-
-      {/* progress bar (mobile) / inline (desktop) */}
-      <div className="relative mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10 sm:mt-0 sm:max-w-[180px]">
-        <motion.div
-          className="h-full rounded-full"
-          style={{ background: color }}
-          initial={{ width: "0%" }}
-          whileInView={{ width: `${score}%` }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-        />
-      </div>
-
-      <dl className="relative mt-4 grid flex-1 grid-cols-3 gap-2 border-t border-white/10 pt-4 sm:mt-0 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-        {stats.map((s) => (
-          <div key={s.label} className="min-w-0 text-center sm:text-left">
-            <dt className="truncate text-[10px] uppercase tracking-[0.08em] text-slate-400">
-              {s.label}
-            </dt>
-            <dd className="mt-1 font-mono-nums text-base font-semibold">
-              {s.value}
-              {s.hint ? (
-                <span className="text-xs text-slate-400">{s.hint}</span>
-              ) : null}
-            </dd>
-          </div>
-        ))}
-      </dl>
     </div>
   );
 }
@@ -353,7 +292,6 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
   return (
     <div className="space-y-4">
       <OverallHero result={result} />
-      <DomainRatingStrip rating={result.domainRating} />
 
       {/* Tab bar */}
       <div className="glass-panel flex gap-1 rounded-2xl p-1.5">
@@ -381,7 +319,7 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
               {isActive && (
                 <motion.span
                   layoutId="active-tab"
-                  className="absolute inset-0 rounded-xl bg-slate-900"
+                  className="absolute inset-0 rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700"
                   transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
               )}

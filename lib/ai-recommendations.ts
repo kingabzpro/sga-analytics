@@ -58,7 +58,7 @@ function normalizeTip(line: string): string | null {
   s = s.replace(/^fix:\s*/i, "");
 
   // Extract category tag: either "[SEO]" or "SEO:" at the start
-  const tagMatch = s.match(/^\[?(SEO|AEO|GEO|SPD)\]?\s*[:\-–]?\s*/i);
+  const tagMatch = s.match(/^\[?(SEO|AEO|GEO|SPD|DR)\]?\s*[:\-–]?\s*/i);
   let category: string | null = null;
   if (tagMatch) {
     category = tagMatch[1].toUpperCase();
@@ -75,10 +75,10 @@ function normalizeTip(line: string): string | null {
   }
 
   // inline tag somewhere mid-line? hoist it to the front and remove inline
-  const inlineTag = s.match(/\[(SEO|AEO|GEO|SPD)\]/i);
+  const inlineTag = s.match(/\[(SEO|AEO|GEO|SPD|DR)\]/i);
   if (inlineTag) {
     category = inlineTag[1].toUpperCase();
-    s = s.replace(/\[(SEO|AEO|GEO|SPD)\]\s*/gi, "").trim();
+    s = s.replace(/\[(SEO|AEO|GEO|SPD|DR)\]\s*/gi, "").trim();
   }
 
   // strip wrapping quotes / markdown bold
@@ -206,7 +206,7 @@ VERDICT: <one plain sentence about the site>
 2. [AEO] <specific action>
 3. [GEO] <specific action>
 4. [SPD] <specific action>
-5. [SEO] <specific action>
+5. [DR] <one specific action to grow backlinks / domain authority>
 
 Rules: use real advice from the failed checks; do not copy placeholders; each line must be a complete actionable tip. No HTML.`;
 
