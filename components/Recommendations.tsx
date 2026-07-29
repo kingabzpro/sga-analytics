@@ -1,6 +1,6 @@
 import type { AnalyzeResult } from "@/lib/types";
 
-type Category = "SEO" | "AEO" | "GEO" | "SPD" | "DR";
+type Category = "SEO" | "AEO" | "GEO" | "SPD" | "TECH" | "DR";
 
 const CATEGORY_META: Record<
   Category,
@@ -34,6 +34,13 @@ const CATEGORY_META: Record<
     badge: "text-amber-700",
     dot: "bg-amber-500",
   },
+  TECH: {
+    label: "Technical",
+    rail: "bg-violet-500",
+    chip: "bg-violet-100 text-violet-800",
+    badge: "text-violet-700",
+    dot: "bg-violet-500",
+  },
   DR: {
     label: "Domain Rating",
     rail: "bg-indigo-500",
@@ -54,7 +61,7 @@ function splitTip(tip: string): { category: Category | null; body: string } {
   const s = tip.trim();
 
   // Leading "[TAG]" prefix (canonical)
-  const bracket = s.match(/^\[(SEO|AEO|GEO|SPD|DR)\]\s*(.*)$/i);
+  const bracket = s.match(/^\[(SEO|AEO|GEO|SPD|TECH|DR)\]\s*(.*)$/i);
   if (bracket) {
     return {
       category: bracket[1].toUpperCase() as Category,
@@ -63,7 +70,7 @@ function splitTip(tip: string): { category: Category | null; body: string } {
   }
 
   // "TAG:" prefix
-  const colon = s.match(/^(SEO|AEO|GEO|SPD|DR)[:\-]\s*(.*)$/i);
+  const colon = s.match(/^(SEO|AEO|GEO|SPD|TECH|DR)[:\-]\s*(.*)$/i);
   if (colon) {
     return {
       category: colon[1].toUpperCase() as Category,
@@ -72,11 +79,11 @@ function splitTip(tip: string): { category: Category | null; body: string } {
   }
 
   // Inline tag anywhere
-  const inline = s.match(/\[(SEO|AEO|GEO|SPD|DR)\]/i);
+  const inline = s.match(/\[(SEO|AEO|GEO|SPD|TECH|DR)\]/i);
   if (inline) {
     return {
       category: inline[1].toUpperCase() as Category,
-      body: cleanBody(s.replace(/\[(SEO|AEO|GEO|SPD|DR)\]\s*/gi, "")),
+      body: cleanBody(s.replace(/\[(SEO|AEO|GEO|SPD|TECH|DR)\]\s*/gi, "")),
     };
   }
 
@@ -146,6 +153,7 @@ function ruleFallbackTips(result: AnalyzeResult): string[] {
     ...result.aeo.recommendations.map((t) => `[AEO] ${t}`),
     ...result.geo.recommendations.map((t) => `[GEO] ${t}`),
     ...result.speed.recommendations.map((t) => `[SPD] ${t}`),
+    ...result.technical.recommendations.map((t) => `[TECH] ${t}`),
     ...domainRatingTips(result),
   ].slice(0, 9);
 }
@@ -210,6 +218,7 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
     AEO: [],
     GEO: [],
     SPD: [],
+    TECH: [],
     DR: [],
   };
   const untagged: string[] = [];
@@ -225,13 +234,13 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
 
   // Spread any untagged tips evenly across the categories
   if (untagged.length > 0) {
-    const order: Category[] = ["SEO", "AEO", "GEO", "SPD", "DR"];
+    const order: Category[] = ["SEO", "AEO", "GEO", "SPD", "TECH", "DR"];
     untagged.forEach((body, i) => {
       groups[order[i % order.length]].push(body);
     });
   }
 
-  const orderedCategories: Category[] = ["SEO", "AEO", "GEO", "SPD", "DR"];
+  const orderedCategories: Category[] = ["SEO", "AEO", "GEO", "SPD", "TECH", "DR"];
   const visibleGroups = orderedCategories
     .map((c) => ({ category: c, tips: groups[c] }))
     .filter((g) => g.tips.length > 0);

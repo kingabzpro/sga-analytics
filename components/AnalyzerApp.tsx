@@ -6,6 +6,7 @@ import type { AnalyzeResult, PsiMetrics } from "@/lib/types";
 import { Logo } from "./Logo";
 import { ScoreCards } from "./ScoreCards";
 import { Recommendations } from "./Recommendations";
+import { CitabilityCard } from "./CitabilityCard";
 
 /** Compact Core Web Vitals readout for the page-signals snapshot.
  *  Prefers field (CrUX p75) values; lab fills the gaps. */
@@ -228,6 +229,8 @@ export function AnalyzerApp() {
             </div>
             <ScoreCards result={result} />
           </div>
+
+          <CitabilityCard probe={result.citability} />
 
           <Recommendations result={result} />
 

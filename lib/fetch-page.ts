@@ -12,7 +12,9 @@ const BLOCKED_HOSTS = new Set([
   "metadata.google.internal",
 ]);
 
-function isPrivateIp(hostname: string): boolean {
+/** SSRF guard: blocks private/loopback/link-local/metadata hosts. Exported so
+ *  the broken-link checker (lib/check-links.ts) reuses the same guard. */
+export function isPrivateIp(hostname: string): boolean {
   if (BLOCKED_HOSTS.has(hostname.toLowerCase())) return true;
   // IPv4 private / link-local / loopback
   const m = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
@@ -27,6 +29,8 @@ function isPrivateIp(hostname: string): boolean {
   return false;
 }
 
+/** Normalize a user URL to a validated http(s) URL, rejecting private/local
+ *  hosts. Exported for the broken-link checker. Throws on invalid/unsafe input. */
 export function normalizeUrl(input: string): URL {
   const trimmed = input.trim();
   if (!trimmed) throw new Error("URL is required");
@@ -54,10 +58,29 @@ export function normalizeUrl(input: string): URL {
   return url;
 }
 
+/** True if the hostname is safe to fetch (http(s) and not private/local). Never
+ *  throws — used by the link checker to filter targets defensively. */
+export function isFetchable(href: string): boolean {
+  try {
+    const u = normalizeUrl(href);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 async function fetchText(
   url: string,
   options?: { accept?: string }
-): Promise<{ ok: boolean; status: number; text: string; finalUrl: string; ms: number }> {
+): Promise<{
+  ok: boolean;
+  status: number;
+  text: string;
+  finalUrl: string;
+  ms: number;
+  headers: Record<string, string>;
+  redirected: boolean;
+}> {
   const start = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -78,12 +101,20 @@ async function fetchText(
     const slice = buf.byteLength > MAX_HTML_BYTES ? buf.slice(0, MAX_HTML_BYTES) : buf;
     const text = new TextDecoder("utf-8", { fatal: false }).decode(slice);
 
+    // Flatten response headers to a lowercased-key record.
+    const headers: Record<string, string> = {};
+    res.headers.forEach((value, key) => {
+      headers[key.toLowerCase()] = value;
+    });
+
     return {
       ok: res.ok,
       status: res.status,
       text,
       finalUrl: res.url || url,
       ms: Date.now() - start,
+      headers,
+      redirected: res.redirected,
     };
   } finally {
     clearTimeout(timer);
@@ -102,6 +133,9 @@ export type FetchedPage = {
   sitemapUrl: string | null;
   llmsTxtFound: boolean;
   llmsTxtUrl: string | null;
+  /** Phase 4: response headers + redirect info for the Technical category. */
+  responseHeaders: Record<string, string>;
+  redirected: boolean;
 };
 
 export async function fetchPageBundle(inputUrl: string): Promise<FetchedPage> {
@@ -184,5 +218,7 @@ export async function fetchPageBundle(inputUrl: string): Promise<FetchedPage> {
     sitemapUrl,
     llmsTxtFound: Boolean(llmsOk),
     llmsTxtUrl: llmsOk ? llmsUrl : null,
+    responseHeaders: page.headers,
+    redirected: page.redirected,
   };
 }

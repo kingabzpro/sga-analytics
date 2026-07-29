@@ -43,28 +43,35 @@ app/
   globals.css            teal/cyan design system + a few CSS keyframes.
 components/
   AnalyzerApp.tsx        client component: URL form, fetch to /api/analyze, results layout.
-  ScoreCards.tsx         animated SVG ring gauges (Overall+4) + Domain Rating hero card + radar.
-  CheckList.tsx          per-category checks with animated progress bar + staggered rows.
-  Recommendations.tsx    AI/rule tips bucketed by category.
+  CitabilityCard.tsx     phase-4 flagship: "would ChatGPT cite this?" verdict card (Mistral + rule fallback).
+  ScoreCards.tsx         animated SVG ring gauges (Overall + 5 categories) + Domain Rating hero + tabbed checks.
+  Recommendations.tsx    AI/rule tips bucketed by category (SEO/AEO/GEO/SPD/TECH/DR).
   motion-helpers.tsx     shared CountUp, AnimatedRing, entrance/stagger variants.
   Logo.tsx
 lib/
   analyze.ts             ORCHESTRATION. fetch -> extract -> score (seo/aeo/geo) ->
-                         parallel (PSI, domain rating) -> score speed + weighted Overall
-                         -> AI advice. OVERALL_WEIGHTS constants live here.
+                         parallel (PSI, domain rating, broken-links HEAD probe) ->
+                         score speed + technical + weighted Overall -> AI advice + citability probe
+                         (parallel). OVERALL_WEIGHTS (5-way) constants live here.
   score-utils.ts         the scoring ENGINE: scoreFromChecks (partial credit), buildCategory,
                          clamp, clamp01, ramp, rampDown.
   score-seo.ts           12 checks, blends in seord content score.
-  score-aeo.ts           8 checks.
-  score-geo.ts           9 checks.
+  score-aeo.ts           9 checks (incl. phase-4 definitional opening).
+  score-geo.ts           11 checks (incl. phase-4 statistics + quotations — Princeton GEO signals).
   score-speed.ts         7 CWV-led checks (real LCP/INP/CLS/FCP/TBT/TTFB via PSI) OR 8
                          on-page heuristic checks (zero-config fallback). scoreSpeed(signals, psi).
+  score-technical.ts     5 checks (phase 4): security headers, HTTPS enforced, redirect chain,
+                         image dimensions, broken outbound links. scoreTechnical({signals, brokenLinks}).
+  check-links.ts         bounded parallel HEAD probe of outbound links (cap 15, SSRF-guarded). Never throws.
   psi.ts                 PageSpeed Insights v5 call, env-gated, heuristic fallback. Never throws.
-  ai-recommendations.ts  Mistral call, env-gated, timeout race, rule fallback.
+  ai-recommendations.ts  Mistral tips + the LLM citability probe (generateCitabilityProbe). Env-gated, never throws.
   domain-rating.ts       Open PageRank call, env-gated, heuristic fallback. Never throws.
-  fetch-page.ts          outbound fetch (HTML/robots/sitemap/llms) + SSRF guard.
-  extract.ts             cheerio signal extraction -> PageSignals.
-  types.ts               CheckResult, CategoryScore, PageSignals, DomainRating, PsiMetrics, AnalyzeResult.
+  fetch-page.ts          outbound fetch (HTML/robots/sitemap/llms) + SSRF guard. Exposes response
+                         headers + redirect flag for the Technical category.
+  extract.ts             cheerio signal extraction -> PageSignals (incl. phase-4 statistics/quotation/
+                         readability/definition + image-dimension counts).
+  types.ts               CheckResult, CategoryScore, PageSignals, DomainRating, PsiMetrics,
+                         BrokenLink, CitabilityProbe, AnalyzeResult.
 ```
 
 ## Key conventions (follow these)
@@ -75,13 +82,14 @@ lib/
   for signals that vary on a spectrum (length, time, count); keep binary
   (`passed` only) for present/absent signals (HTTPS, viewport, schema). Always
   still set `passed` truthy at the check's pass threshold so the ✓ shows.
-- **Overall is a weighted blend** of the four category scores
-  (`OVERALL_WEIGHTS` in `analyze.ts`, default SEO 35 / AEO 25 / GEO 20 / Speed
-  20). **Domain Rating is excluded** — it's off-page.
+- **Overall is a weighted blend** of the **five** category scores
+  (`OVERALL_WEIGHTS` in `analyze.ts`, default SEO 30 / AEO 22 / GEO 18 / Speed
+  15 / Technical 15). **Domain Rating is excluded** — it's off-page.
 - **External calls are env-gated with graceful fallback + a `source`
   discriminator** (`aiSource: "mistral"|"rules"`,
   `domainRating.source: "openpagerank"|"heuristic"`,
-  `psiMetrics.source: "psi" | null`). Never let them throw up to the route
+  `psiMetrics.source: "psi" | null`,
+  `citability.source: "mistral"|"rules"`). Never let them throw up to the route
   handler; degrade to a rule/heuristic result. This is the template for any new
   integration. Note: speed scoring depends on PSI, so in `analyze.ts` PSI +
   domain-rating are fetched in parallel *first*, then speed/Overall are scored,
@@ -161,3 +169,40 @@ Never commit real secrets. Only `.env.example` is tracked.
     against a fixture payload (field+lab, field-only, lab-only, CLS ×100
     normalization). No-key path returns `psiMetrics: null` and identical Speed
     scores to pre-phase-3.
+- **2026-07-29 (phase 4)** — GEO/AEO depth + Technical category + LLM citability probe.
+  Three sequenced tracks, web-grounded in the **Princeton GEO paper** (arXiv
+  2311.05232), Search Engine Land's 2026 GEO guide, and Google's AI-optimization
+  guide; feature-set compared against Semrush/Ahrefs/Screaming Frog.
+  - **Track A — Princeton-aligned signal depth.** Added pure text-analysis
+    helpers in `lib/extract.ts` (statistics/figures, quotations, Flesch
+    readability, definitional openings) over the existing `bodyText`, surfaced
+    as new `PageSignals` fields. New GEO checks `statistics` + `quotations`
+    (3 of the 4 highest-evidence Princeton citability tactics) and AEO check
+    `definition` (snippet-favored "X is a…" leads); all three scorer tables
+    reweighted to sum 100. Relabeled the GEO tab "LLM citability readiness" to
+    match Google's actual guidance (schema/llms.txt help non-Google LLMs, not
+    Google ranking).
+  - **Track B — 5th scored category: Technical.** `lib/fetch-page.ts` now
+    exposes response headers + a redirect flag; `lib/extract.ts` counts images
+    with/without dimensions. New `lib/score-technical.ts` (5 checks: security
+    headers, HTTPS enforced, redirect chain, image dimensions, broken outbound
+    links) + `lib/check-links.ts` (bounded parallel HEAD probe, capped at 15
+    outbound links, SSRF-guarded, never throws). `OVERALL_WEIGHTS` became a
+    **5-way blend** (SEO 30 / AEO 22 / GEO 18 / Speed 15 / Tech 15). Pipeline
+    runs the link probe in parallel with PSI + DR; Technical + Speed + Overall
+    score after, then AI advice last.
+  - **Track C — LLM citability probe (flagship).** `generateCitabilityProbe`
+    in `lib/ai-recommendations.ts`: auto-derives a target query from the page
+    (H1 → title → lead paragraph) and asks Mistral "would you cite this page?"
+    returning `{verdict, score 0–100, gaps[], reason}`. Reuses the existing
+    Mistral client + timeout + try/catch→fallback; degrades to a rule-based
+    probe derived from GEO/AEO scores when no key or a failure. New
+    `CitabilityProbe` type + `citability` field on `AnalyzeResult`. New
+    `components/CitabilityCard.tsx` (verdict pill + score ring + gaps), placed
+    above the tabbed score cards.
+  - Verified: `tsc`/`eslint`/`next build` pass; 16-assertion fixture test covers
+    scorer weights (all sum 100), partial-credit math, broken-link ratio,
+    `deriveQuery` fallback/trimming. Live local `/api/analyze` of a Wikipedia
+    article returns 5 categories (Overall 74), a `would-cite` Mistral probe
+    (score 95), and a fully-populated Technical category. Phase-4 work is **not
+    yet deployed** to Vercel (still the phase-3 build until pushed).

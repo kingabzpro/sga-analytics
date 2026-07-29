@@ -32,6 +32,61 @@ function textContent($: cheerio.CheerioAPI, el: unknown): string {
   return $(el as never).text().replace(/\s+/g, " ").trim();
 }
 
+/**
+ * --- Phase 4 GEO/AEO text signals (Princeton GEO paper, arXiv 2311.05232) ---
+ * Pure functions over body text. Statistics, quotations, and fluency are three
+ * of the four highest-evidence GEO tactics; a definitional opening helps AEO
+ * (answer engines favor "X is a…" snippets).
+ */
+
+/** Count statistic/data points: percentages, currency, large numbers with
+ *  units, and "1 in 5"-style ratios. Threshold-based partial credit downstream. */
+function countStatistics(text: string): number {
+  let n = 0;
+  // percentages: 42%, 42.5 %
+  n += (text.match(/\d+(?:\.\d+)?\s?%/g) || []).length;
+  // currency: $1,000 / €50 / £12.99 / USD 100
+  n += (text.match(/[$€£¥₹]\s?\d{1,3}(?:,\d{3})*(?:\.\d+)?|\b(?:USD|EUR|GBP)\s?\d+/g) || []).length;
+  // large numbers with units: 1,200 visitors, 5.2 million, 30 kg
+  n += (text.match(/\b\d{1,3}(?:,\d{3})+\s?\w+|\b\d+(?:\.\d+)?\s?(?:million|billion|thousand|kg|km|tons?|hours?|users?|people)\b/gi) || []).length;
+  // ratios: 1 in 5, one out of three
+  n += (text.match(/\b(?:one|two|three|\d+)\s(?:in|out of)\s(?:one|two|three|four|five|\d+)\b/gi) || []).length;
+  return n;
+}
+
+/** Count quoted sources: <blockquote> count is passed separately; this counts
+ *  inline quoted spans (smart quotes "" or straight "…" runs ≥ 25 chars). */
+function countInlineQuotations(text: string): number {
+  // smart double quotes
+  const smart = text.match(/[\u201C\u201D][^\u201C\u201D]{25,}[\u201C\u201D]/g) || [];
+  // straight double quotes (non-greedy, ≥25 chars inside)
+  const straight = text.match(/"[^"\n]{25,}"/g) || [];
+  return smart.length + straight.length;
+}
+
+/** Flesch Reading Ease over body text — a fluency/readability proxy.
+ *  Returns 0–100 (higher = easier). Guards divide-by-zero. */
+function fleschReadingEase(text: string): number {
+  const words = text.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  if (wordCount < 5) return 0;
+  const sentences = Math.max(text.split(/[.!?]+/).filter((s) => s.trim().length > 0).length, 1);
+  // syllables ≈ vowel-group count per word (lower-bound heuristic)
+  const syllables = words.reduce((sum, w) => {
+    const m = w.toLowerCase().match(/[aeiouy]+/g);
+    return sum + Math.max(m ? m.length : 1, 1);
+  }, 0);
+  const score = 206.835 - 1.015 * (wordCount / sentences) - 84.6 * (syllables / wordCount);
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/** Detect a definitional opening ("X is a/an…", "X refers to…", "X means…").
+ *  Answer engines favor these for featured snippets. Looks at the body start. */
+function hasDefinitionalOpening(bodyStart: string): boolean {
+  return /\b(?:is|are|was|were)\s+(?:a|an|the|one|defined as|known as)\b/i.test(bodyStart) ||
+    /\b(?:refers to|means|describes|denotes|represents)\b/i.test(bodyStart);
+}
+
 export function extractSignals(page: FetchedPage): PageSignals {
   const $ = cheerio.load(page.html);
   const base = page.finalUrl;
@@ -92,6 +147,16 @@ export function extractSignals(page: FetchedPage): PageSignals {
     .get()
     .filter((img) => img.src);
 
+  // Phase 4: image dimension coverage — missing width/height is a CLS risk.
+  let imagesWithDimensions = 0;
+  let imagesMissingDimensions = 0;
+  $("img").each((_, el) => {
+    const w = $(el).attr("width");
+    const h = $(el).attr("height");
+    if (w && h) imagesWithDimensions++;
+    else imagesMissingDimensions++;
+  });
+
   const links: PageSignals["links"] = [];
   $("a[href]").each((_, el) => {
     const hrefRaw = $(el).attr("href") || "";
@@ -140,6 +205,13 @@ export function extractSignals(page: FetchedPage): PageSignals {
 
   const bodyText = $("body").text().replace(/\s+/g, " ").trim();
   const wordCount = bodyText ? bodyText.split(/\s+/).filter(Boolean).length : 0;
+
+  // Phase 4 GEO/AEO text signals (computed once over bodyText).
+  const statisticsCount = countStatistics(bodyText);
+  const quotationCount =
+    countInlineQuotations(bodyText) + $("blockquote").length;
+  const readabilityScore = fleschReadingEase(bodyText);
+  const hasDefinition = hasDefinitionalOpening(bodyText.slice(0, 600));
 
   const firstParagraph =
     $("main p, article p, p")
@@ -239,6 +311,8 @@ export function extractSignals(page: FetchedPage): PageSignals {
     headings,
     images,
     links,
+    imagesWithDimensions,
+    imagesMissingDimensions,
     jsonLdTypes,
     jsonLdRaw,
     hasFaqSchema,
@@ -252,8 +326,14 @@ export function extractSignals(page: FetchedPage): PageSignals {
     hasAuthor,
     hasDate,
     dateDetail,
+    statisticsCount,
+    quotationCount,
+    readabilityScore,
+    hasDefinition,
     html: page.html,
     bodyHtml: bodyHtml || "",
+    responseHeaders: page.responseHeaders,
+    redirected: page.redirected,
     robotsTxt: page.robotsTxt,
     robotsTxtUrl: page.robotsTxtUrl,
     sitemapFound: page.sitemapFound,

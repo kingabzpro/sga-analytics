@@ -19,13 +19,14 @@ function labelColor(score: number) {
   return "text-rose-700";
 }
 
-type TabKey = "SEO" | "AEO" | "GEO" | "Speed";
+type TabKey = "SEO" | "AEO" | "GEO" | "Speed" | "Technical";
 
 const TABS: { key: TabKey; label: string; accent: string; chip: string }[] = [
   { key: "SEO", label: "SEO", accent: "teal", chip: "bg-teal-500" },
   { key: "AEO", label: "AEO", accent: "cyan", chip: "bg-cyan-500" },
   { key: "GEO", label: "GEO", accent: "emerald", chip: "bg-emerald-500" },
   { key: "Speed", label: "Speed", accent: "amber", chip: "bg-amber-500" },
+  { key: "Technical", label: "Technical", accent: "violet", chip: "bg-violet-500" },
 ];
 
 /** Hero card: Overall ring (left), verdict + chips (middle), Domain Rating
@@ -83,6 +84,7 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
               ["AEO", result.aeo.score],
               ["GEO", result.geo.score],
               ["Speed", result.speed.score],
+              ["Tech", result.technical.score],
             ] as [string, number][]
           ).map(([label, s]) => (
             <span
@@ -326,7 +328,7 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
         return (
           <TabPanel
             title="GEO"
-            subtitle="Generative engines"
+            subtitle="LLM citability readiness"
             category={result.geo}
             accent="bg-emerald-500"
           />
@@ -343,6 +345,15 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
                 ? "PageSpeed Insights"
                 : "Estimated (no PSI key)"
             }
+          />
+        );
+      case "Technical":
+        return (
+          <TabPanel
+            title="Technical"
+            subtitle="Security & best practices"
+            category={result.technical}
+            accent="bg-violet-500"
           />
         );
     }
@@ -363,7 +374,9 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
                 ? result.aeo.score
                 : t.key === "GEO"
                   ? result.geo.score
-                  : result.speed.score;
+                  : t.key === "Speed"
+                    ? result.speed.score
+                    : result.technical.score;
           return (
             <button
               key={t.key}

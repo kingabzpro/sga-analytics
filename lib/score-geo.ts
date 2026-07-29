@@ -24,7 +24,7 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     id: "llms-txt",
     label: "llms.txt for AI crawlers",
     passed: signals.llmsTxtFound,
-    weight: 10,
+    weight: 8,
     detail: signals.llmsTxtFound
       ? `Found at ${signals.llmsTxtUrl}`
       : "No /llms.txt at site root",
@@ -43,7 +43,7 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     id: "ai-bot-access",
     label: "AI bot crawl access",
     passed: aiAccessOk && blockedBots.length < signals.aiBots.length,
-    weight: 14,
+    weight: 12,
     detail: !signals.robotsTxt
       ? "No robots.txt to evaluate AI bot policy"
       : blockedBots.length === 0
@@ -60,15 +60,42 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     passed: externalLinks.length >= 2,
     // full at 5+ external links, ramp from 0
     partialScore: clamp01(ramp(externalLinks.length, [0, 5])),
-    weight: 12,
+    weight: 8,
     detail: `${externalLinks.length} external link(s) (citations help generative engines)`,
+  });
+
+  // Phase 4: Princeton GEO — statistics/figures are one of the strongest
+  // citability signals (reported ~+30-40% in the GEO benchmark).
+  checks.push({
+    id: "statistics",
+    label: "Statistics / data points",
+    passed: signals.statisticsCount >= 1,
+    partialScore: clamp01(ramp(signals.statisticsCount, [0, 3])),
+    weight: 10,
+    detail:
+      signals.statisticsCount > 0
+        ? `${signals.statisticsCount} statistic(s)/data point(s) detected`
+        : "No statistics or data points detected",
+  });
+
+  // Phase 4: Princeton GEO — direct quotations of sources aid citation.
+  checks.push({
+    id: "quotations",
+    label: "Quoted sources",
+    passed: signals.quotationCount >= 1,
+    partialScore: clamp01(ramp(signals.quotationCount, [0, 2])),
+    weight: 8,
+    detail:
+      signals.quotationCount > 0
+        ? `${signals.quotationCount} quoted source(s)`
+        : "No block quotes or cited quotations detected",
   });
 
   checks.push({
     id: "freshness",
     label: "Date / freshness signal",
     passed: signals.hasDate,
-    weight: 10,
+    weight: 8,
     detail: signals.hasDate
       ? `Date signal: ${signals.dateDetail}`
       : "No publish/modified date detected",
@@ -81,7 +108,7 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     id: "eeat-pages",
     label: "E-E-A-T related links",
     passed: trustPaths.length >= 1 || signals.hasAuthor,
-    weight: 12,
+    weight: 10,
     detail:
       trustPaths.length > 0
         ? `Found ${trustPaths.length} about/contact/trust-style link(s)`
@@ -94,7 +121,7 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     id: "semantic-landmarks",
     label: "Semantic HTML landmarks",
     passed: signals.hasMain || signals.hasArticle || signals.hasHeader,
-    weight: 8,
+    weight: 6,
     detail: [
       signals.hasHeader ? "header" : null,
       signals.hasMain ? "main" : null,
@@ -108,7 +135,7 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     id: "https-geo",
     label: "Secure origin (HTTPS)",
     passed: signals.https,
-    weight: 8,
+    weight: 6,
     detail: signals.https ? "HTTPS enabled" : "Not on HTTPS",
   });
 
@@ -116,7 +143,7 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
     id: "clear-title-entity",
     label: "Clear title entity",
     passed: signals.title.length >= 10,
-    weight: 10,
+    weight: 8,
     detail: signals.title
       ? `Title: “${signals.title.slice(0, 90)}”`
       : "Missing title, so entities are harder to extract",
@@ -132,6 +159,10 @@ export function scoreGeo(signals: PageSignals): CategoryScore {
         return "Review robots.txt so trusted AI crawlers you want citations from are not blocked unintentionally.";
       case "citations":
         return "Cite authoritative external sources with outbound links to improve trust for generative engines.";
+      case "statistics":
+        return "Add concrete statistics, figures, and data points — generative engines favor content with verifiable numbers.";
+      case "quotations":
+        return "Include direct quotations from authoritative sources to strengthen citability.";
       case "freshness":
         return "Expose publish/updated dates (time[datetime] or Article datePublished).";
       case "eeat-pages":

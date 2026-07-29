@@ -11,7 +11,7 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
     id: "faq-schema",
     label: "FAQ / HowTo / QA schema",
     passed: signals.hasFaqSchema || signals.hasHowToSchema || signals.hasQaSchema,
-    weight: 18,
+    weight: 16,
     detail: signals.hasFaqSchema
       ? "FAQ schema detected"
       : signals.hasHowToSchema
@@ -51,7 +51,7 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
     label: "Direct answer near top",
     passed: conciseAnswer,
     partialScore: clamp01(answerPartial),
-    weight: 16,
+    weight: 14,
     detail: answerLen
       ? `First substantial paragraph is ${answerLen} characters`
       : "No substantial opening paragraph found",
@@ -69,11 +69,23 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
     detail: `${listCount} list(s), ${tableCount} table(s)`,
   });
 
+  // Phase 4: definitional openings ("X is a…") are heavily favored by answer
+  // engines for featured snippets and definitions.
+  checks.push({
+    id: "definition",
+    label: "Definitional opening",
+    passed: signals.hasDefinition,
+    weight: 10,
+    detail: signals.hasDefinition
+      ? "Opens with a definitional sentence (e.g. \"X is a…\")"
+      : "No definitional opening detected — answer engines favor \"X is a…\" leads",
+  });
+
   checks.push({
     id: "heading-outline",
     label: "Clear H2/H3 outline",
     passed: signals.h2.length >= 2 || (signals.h2.length >= 1 && signals.h3.length >= 1),
-    weight: 14,
+    weight: 12,
     detail: `${signals.h2.length} H2, ${signals.h3.length} H3`,
   });
 
@@ -81,7 +93,7 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
     id: "author-signal",
     label: "Author / byline signal",
     passed: signals.hasAuthor,
-    weight: 10,
+    weight: 8,
     detail: signals.hasAuthor
       ? "Author or byline signal detected"
       : "No author meta, byline, or Person schema found",
@@ -104,7 +116,7 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
     label: "Answer depth (word count)",
     passed: signals.wordCount >= 300,
     partialScore: clamp01(ramp(signals.wordCount, [100, 500])),
-    weight: 8,
+    weight: 6,
     detail: `${signals.wordCount} words (aim for 300+ for answer engines)`,
   });
 
@@ -118,6 +130,8 @@ export function scoreAeo(signals: PageSignals): CategoryScore {
         return "Start with a concise 40-300 character answer paragraph before deep detail.";
       case "lists-tables":
         return "Structure key facts as bullet lists or tables for snippet extraction.";
+      case "definition":
+        return "Open with a one-line definition (\"X is a…\") so answer engines can extract it as a snippet.";
       case "heading-outline":
         return "Add a clear H2/H3 outline that mirrors user questions and subtopics.";
       case "author-signal":
