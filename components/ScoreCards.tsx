@@ -28,15 +28,15 @@ const TABS: { key: TabKey; label: string; accent: string; chip: string }[] = [
   { key: "Speed", label: "Speed", accent: "amber", chip: "bg-amber-500" },
 ];
 
-/** Hero card: the Overall score as a large animated ring, plus the Domain
- *  Rating number folded in compactly so the empty space is used. */
+/** Hero card: Overall ring (left), verdict + chips (middle), Domain Rating
+ *  metrics on the right side. */
 function OverallHero({ result }: { result: AnalyzeResult }) {
   const score = result.overallScore;
   const dr = result.domainRating;
   const drLive = dr.source === "openpagerank";
 
   return (
-    <div className="glass-panel relative grid grid-cols-1 gap-5 overflow-hidden rounded-2xl p-6 sm:grid-cols-[auto_1fr] sm:gap-7 sm:p-7">
+    <div className="glass-panel relative grid grid-cols-1 gap-5 overflow-hidden rounded-2xl p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-7 sm:p-7">
       <div
         aria-hidden
         className="pointer-events-none absolute -left-12 -top-12 h-48 w-48 rounded-full opacity-20 blur-3xl"
@@ -52,7 +52,7 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
         </AnimatedRing>
       </div>
 
-      {/* Verdict + DR + category chips — fills the ring's height, no dead space */}
+      {/* Verdict + category chips (middle) */}
       <div className="flex min-w-0 flex-col justify-center gap-4 text-center sm:items-start sm:text-left">
         <div>
           <div className="flex items-center justify-center gap-2 sm:justify-start">
@@ -76,45 +76,52 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
             tabs below.
           </p>
         </div>
-
-        {/* Domain Rating + category chips on one row — compact, no empty space */}
-        <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center">
-          <div className="inline-flex items-baseline gap-1.5 rounded-xl bg-white px-3 py-1.5 ring-1 ring-slate-200">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-              Domain Rating
+        <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
+          {(
+            [
+              ["SEO", result.seo.score],
+              ["AEO", result.aeo.score],
+              ["GEO", result.geo.score],
+              ["Speed", result.speed.score],
+            ] as [string, number][]
+          ).map(([label, s]) => (
+            <span
+              key={label}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200"
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: ringColor(s) }}
+                aria-hidden
+              />
+              <span className="font-mono-nums font-semibold text-slate-800">
+                {s}
+              </span>
+              {label}
             </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Domain Rating metrics — right side */}
+      <div className="flex items-center justify-center border-t border-slate-100 pt-5 text-center sm:flex-col sm:border-l sm:border-t-0 sm:pt-0 sm:pl-6">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            Domain Rating
+          </div>
+          <div className="mt-1 flex items-end justify-center gap-1.5">
             <CountUp
               value={dr.score}
-              className={`font-mono-nums text-lg font-semibold ${labelColor(dr.score)}`}
+              className={`font-mono-nums text-3xl font-semibold leading-none tracking-tight ${labelColor(dr.score)}`}
             />
-            <span className="text-[10px] text-slate-400">
-              {drLive ? "OPR" : "est"}
-            </span>
+            <span className="mb-0.5 text-xs text-slate-400">/100</span>
           </div>
-          <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
-            {(
-              [
-                ["SEO", result.seo.score],
-                ["AEO", result.aeo.score],
-                ["GEO", result.geo.score],
-                ["Speed", result.speed.score],
-              ] as [string, number][]
-            ).map(([label, s]) => (
-              <span
-                key={label}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200"
-              >
-                <span
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ background: ringColor(s) }}
-                  aria-hidden
-                />
-                <span className="font-mono-nums font-semibold text-slate-800">
-                  {s}
-                </span>
-                {label}
-              </span>
-            ))}
+          <div className="mt-1 text-[10px] text-slate-400">
+            {drLive
+              ? "Open PageRank"
+              : dr.rawRank !== null
+                ? `OPR ${dr.rawRank.toFixed(1)}/10`
+                : "estimate"}
           </div>
         </div>
       </div>
@@ -165,7 +172,9 @@ function CheckRow({
   );
 }
 
-/** Content for one tab: a category ring + its checks. */
+/** Content for one tab: dial + failed checks (left) and passed checks (right).
+ *  Splitting checks by status fills the space under the dial with the
+ *  actionable items, and balances the two columns' heights. */
 function TabPanel({
   title,
   subtitle,
@@ -177,63 +186,105 @@ function TabPanel({
   category: CategoryScore;
   accent: string;
 }) {
-  const passed = category.checks.filter((c) => c.passed).length;
+  const failed = category.checks.filter((c) => !c.passed);
+  const passed = category.checks.filter((c) => c.passed);
   const total = category.checks.length;
-  const pct = total > 0 ? Math.round((passed / total) * 100) : 0;
+  const pct = total > 0 ? Math.round((passed.length / total) * 100) : 0;
+
+  const listVariants = {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.04 } },
+  };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-5">
-      {/* score summary */}
-      <div className="lg:col-span-2">
-        <div className="glass-panel flex h-full flex-col items-center rounded-2xl p-5">
+    <div className="grid gap-5 lg:grid-cols-2">
+      {/* Left: dial + the failed checks (action items) below it */}
+      <div className="glass-panel flex flex-col rounded-2xl p-5">
+        <div className="flex items-center gap-5">
           <AnimatedRing
             value={category.score}
-            size={116}
-            stroke={9}
+            size={96}
+            stroke={8}
             color={ringColor(category.score)}
           >
             <CountUp
               value={category.score}
-              className="font-mono-nums text-3xl font-semibold tracking-tight text-slate-900"
+              className="font-mono-nums text-2xl font-semibold tracking-tight text-slate-900"
             />
           </AnimatedRing>
-          <div
-            className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] ${labelColor(category.score)}`}
-          >
-            {title}
-          </div>
-          <div className="mt-1 text-center text-xs text-slate-500">{subtitle}</div>
-          <div className="mt-4 w-full">
-            <div className="mb-1.5 flex justify-between text-[11px] text-slate-500">
-              <span>
-                {passed} of {total} passed
-              </span>
-              <span className="font-mono-nums">{pct}%</span>
+          <div className="min-w-0">
+            <div
+              className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelColor(category.score)}`}
+            >
+              {title}
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-              <motion.div
-                className={`h-full rounded-full ${accent}`}
-                initial={{ width: "0%" }}
-                animate={{ width: `${pct}%` }}
-                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-              />
+            <div className="mt-0.5 text-xs text-slate-500">{subtitle}</div>
+            <div className="mt-2">
+              <div className="mb-1 flex justify-between text-[11px] text-slate-500">
+                <span>
+                  {passed.length}/{total} passed
+                </span>
+                <span className="font-mono-nums">{pct}%</span>
+              </div>
+              <div className="h-1.5 w-40 overflow-hidden rounded-full bg-slate-100">
+                <motion.div
+                  className={`h-full rounded-full ${accent}`}
+                  initial={{ width: "0%" }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Failed checks fill the space under the dial */}
+        <div className="mt-4 border-t border-slate-100 pt-3">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" aria-hidden />
+            {failed.length > 0
+              ? `${failed.length} to fix`
+              : "Nothing to fix"}
+          </div>
+          {failed.length > 0 ? (
+            <motion.ul
+              initial="hidden"
+              animate="show"
+              variants={listVariants}
+              className="space-y-2"
+            >
+              {failed.map((check) => (
+                <CheckRow key={check.id} check={check} accent={accent} />
+              ))}
+            </motion.ul>
+          ) : (
+            <p className="text-sm text-slate-500">
+              All checks pass for this area.
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* checks */}
-      <div className="lg:col-span-3">
-        <motion.ul
-          initial="hidden"
-          animate="show"
-          variants={{ show: { transition: { staggerChildren: 0.04 } } }}
-          className="space-y-2"
-        >
-          {category.checks.map((check) => (
-            <CheckRow key={check.id} check={check} accent={accent} />
-          ))}
-        </motion.ul>
+      {/* Right: passed checks */}
+      <div className="flex flex-col">
+        <div className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+          {passed.length} passed
+        </div>
+        {passed.length > 0 ? (
+          <motion.ul
+            initial="hidden"
+            animate="show"
+            variants={listVariants}
+            className="space-y-2"
+          >
+            {passed.map((check) => (
+              <CheckRow key={check.id} check={check} accent={accent} />
+            ))}
+          </motion.ul>
+        ) : (
+          <p className="px-1 text-sm text-slate-500">No checks passed yet.</p>
+        )}
       </div>
     </div>
   );
