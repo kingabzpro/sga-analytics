@@ -165,7 +165,9 @@ function CheckRow({
   );
 }
 
-/** Content for one tab: a category ring + its checks. */
+/** Content for one tab: dial + failed checks (left) and passed checks (right).
+ *  Splitting checks by status fills the space under the dial with the
+ *  actionable items, and balances the two columns' heights. */
 function TabPanel({
   title,
   subtitle,
@@ -177,63 +179,105 @@ function TabPanel({
   category: CategoryScore;
   accent: string;
 }) {
-  const passed = category.checks.filter((c) => c.passed).length;
+  const failed = category.checks.filter((c) => !c.passed);
+  const passed = category.checks.filter((c) => c.passed);
   const total = category.checks.length;
-  const pct = total > 0 ? Math.round((passed / total) * 100) : 0;
+  const pct = total > 0 ? Math.round((passed.length / total) * 100) : 0;
+
+  const listVariants = {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.04 } },
+  };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-5">
-      {/* score summary */}
-      <div className="lg:col-span-2">
-        <div className="glass-panel flex h-full flex-col items-center rounded-2xl p-5">
+    <div className="grid gap-5 lg:grid-cols-2">
+      {/* Left: dial + the failed checks (action items) below it */}
+      <div className="glass-panel flex flex-col rounded-2xl p-5">
+        <div className="flex items-center gap-5">
           <AnimatedRing
             value={category.score}
-            size={116}
-            stroke={9}
+            size={96}
+            stroke={8}
             color={ringColor(category.score)}
           >
             <CountUp
               value={category.score}
-              className="font-mono-nums text-3xl font-semibold tracking-tight text-slate-900"
+              className="font-mono-nums text-2xl font-semibold tracking-tight text-slate-900"
             />
           </AnimatedRing>
-          <div
-            className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] ${labelColor(category.score)}`}
-          >
-            {title}
-          </div>
-          <div className="mt-1 text-center text-xs text-slate-500">{subtitle}</div>
-          <div className="mt-4 w-full">
-            <div className="mb-1.5 flex justify-between text-[11px] text-slate-500">
-              <span>
-                {passed} of {total} passed
-              </span>
-              <span className="font-mono-nums">{pct}%</span>
+          <div className="min-w-0">
+            <div
+              className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelColor(category.score)}`}
+            >
+              {title}
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-              <motion.div
-                className={`h-full rounded-full ${accent}`}
-                initial={{ width: "0%" }}
-                animate={{ width: `${pct}%` }}
-                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-              />
+            <div className="mt-0.5 text-xs text-slate-500">{subtitle}</div>
+            <div className="mt-2">
+              <div className="mb-1 flex justify-between text-[11px] text-slate-500">
+                <span>
+                  {passed.length}/{total} passed
+                </span>
+                <span className="font-mono-nums">{pct}%</span>
+              </div>
+              <div className="h-1.5 w-40 overflow-hidden rounded-full bg-slate-100">
+                <motion.div
+                  className={`h-full rounded-full ${accent}`}
+                  initial={{ width: "0%" }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Failed checks fill the space under the dial */}
+        <div className="mt-4 border-t border-slate-100 pt-3">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" aria-hidden />
+            {failed.length > 0
+              ? `${failed.length} to fix`
+              : "Nothing to fix"}
+          </div>
+          {failed.length > 0 ? (
+            <motion.ul
+              initial="hidden"
+              animate="show"
+              variants={listVariants}
+              className="space-y-2"
+            >
+              {failed.map((check) => (
+                <CheckRow key={check.id} check={check} accent={accent} />
+              ))}
+            </motion.ul>
+          ) : (
+            <p className="text-sm text-slate-500">
+              All checks pass for this area.
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* checks */}
-      <div className="lg:col-span-3">
-        <motion.ul
-          initial="hidden"
-          animate="show"
-          variants={{ show: { transition: { staggerChildren: 0.04 } } }}
-          className="space-y-2"
-        >
-          {category.checks.map((check) => (
-            <CheckRow key={check.id} check={check} accent={accent} />
-          ))}
-        </motion.ul>
+      {/* Right: passed checks */}
+      <div className="flex flex-col">
+        <div className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+          {passed.length} passed
+        </div>
+        {passed.length > 0 ? (
+          <motion.ul
+            initial="hidden"
+            animate="show"
+            variants={listVariants}
+            className="space-y-2"
+          >
+            {passed.map((check) => (
+              <CheckRow key={check.id} check={check} accent={accent} />
+            ))}
+          </motion.ul>
+        ) : (
+          <p className="px-1 text-sm text-slate-500">No checks passed yet.</p>
+        )}
       </div>
     </div>
   );
