@@ -90,7 +90,7 @@ export type AnalyzeResult = {
   domainRating: DomainRating;
   aiSummary: string | null;
   aiRecommendations: string[];
-  aiSource: "huggingface" | "rules";
+  aiSource: "mistral" | "rules";
 };
 
 /**

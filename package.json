@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@huggingface/inference": "^4.13.23",
     "@mistralai/mistralai": "^2.5.0",
     "cheerio": "^1.2.0",
     "motion": "^12.43.0",

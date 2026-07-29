@@ -11,7 +11,7 @@ const AI_TIMEOUT_MS = 20000;
 export type AiAdvice = {
   summary: string | null;
   recommendations: string[];
-  source: "huggingface" | "rules";
+  source: "mistral" | "rules";
 };
 
 function ruleFallback(
@@ -272,7 +272,7 @@ Rules: use real advice from the failed checks; do not copy placeholders; each li
     return {
       summary: summaryLooksBad ? fallback.summary : parsed.summary,
       recommendations: merged.length > 0 ? merged : fallback.recommendations,
-      source: "huggingface",
+      source: "mistral",
     };
   } catch {
     return fallback;

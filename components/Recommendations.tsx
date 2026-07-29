@@ -203,7 +203,7 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
           </p>
         </div>
         <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-800 ring-1 ring-teal-100">
-          {result.aiSource === "huggingface" ? "AI + rules" : "Rule-based"}
+          {result.aiSource === "mistral" ? "AI + rules" : "Rule-based"}
         </span>
       </div>
 

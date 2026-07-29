@@ -305,7 +305,7 @@ export function AnalyzerApp() {
       <footer className="mt-14 border-t border-slate-200/70 pt-6 text-center">
         <p className="text-xs leading-relaxed text-slate-400">
           Open-source checks with cheerio, seord, and robots-parser
-          {result?.aiSource === "huggingface"
+          {result?.aiSource === "mistral"
             ? ", plus mistral-medium"
             : ""}
           {result?.domainRating.source === "openpagerank"

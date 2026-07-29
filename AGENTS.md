@@ -76,8 +76,7 @@ lib/
   (`OVERALL_WEIGHTS` in `analyze.ts`, default SEO 35 / AEO 25 / GEO 20 / Speed
   20). **Domain Rating is excluded** — it's off-page.
 - **External calls are env-gated with graceful fallback + a `source`
-  discriminator** (`aiSource: "huggingface"|"rules"` — note the value is
-  historical; it now means "Mistral-backed" not literally HuggingFace;
+  discriminator** (`aiSource: "mistral"|"rules"`,
   `domainRating.source: "openpagerank"|"heuristic"`). Never let them throw up to
   the route handler; degrade to a rule/heuristic result. This is the template for
   any new integration.
