@@ -2,10 +2,41 @@
 
 import { useState } from "react";
 import { motion } from "motion/react";
-import type { AnalyzeResult } from "@/lib/types";
+import type { AnalyzeResult, PsiMetrics } from "@/lib/types";
 import { Logo } from "./Logo";
 import { ScoreCards } from "./ScoreCards";
 import { Recommendations } from "./Recommendations";
+
+/** Compact Core Web Vitals readout for the page-signals snapshot.
+ *  Prefers field (CrUX p75) values; lab fills the gaps. */
+function fmtMs(ms: number): string {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1)}s` : `${Math.round(ms)}ms`;
+}
+
+function CwvRow({ psi }: { psi: PsiMetrics }) {
+  const parts: string[] = [];
+  const lcp = psi.field?.lcpMs ?? psi.lab?.lcpMs;
+  if (lcp != null) parts.push(`LCP ${fmtMs(lcp)}`);
+  const inp = psi.field?.inpMs;
+  if (inp != null) parts.push(`INP ${fmtMs(inp)}`);
+  const cls = psi.field?.cls ?? psi.lab?.cls;
+  if (cls != null) parts.push(`CLS ${cls.toFixed(3)}`);
+
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        Core Web Vitals
+      </dt>
+      <dd className="mt-1 font-mono-nums text-slate-800">
+        {parts.length ? parts.join(" · ") : "No field/lab data"}
+        <span className="text-slate-400">
+          {" "}
+          · {psi.field ? `field ${psi.field.overall.toLowerCase()}` : "lab only"}
+        </span>
+      </dd>
+    </div>
+  );
+}
 
 export function AnalyzerApp() {
   const [url, setUrl] = useState("https://example.com");
@@ -251,6 +282,9 @@ export function AnalyzerApp() {
                   {result.signals.loadTimeMs} ms response
                 </dd>
               </div>
+              {result.psiMetrics?.source === "psi" ? (
+                <CwvRow psi={result.psiMetrics} />
+              ) : null}
               <div className="sm:col-span-2">
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                   AI bots (robots.txt)
@@ -277,11 +311,12 @@ export function AnalyzerApp() {
       <footer className="mt-14 border-t border-slate-200/70 pt-6 text-center">
         <p className="text-xs leading-relaxed text-slate-400">
           Open-source checks with cheerio, seord, and robots-parser
-          {result?.aiSource === "mistral"
-            ? ", plus mistral-medium"
-            : ""}
+          {result?.aiSource === "mistral" ? ", plus mistral-medium" : ""}
           {result?.domainRating.source === "openpagerank"
             ? " · domain rating via Open PageRank"
+            : ""}
+          {result?.psiMetrics?.source === "psi"
+            ? " · Core Web Vitals via PageSpeed Insights"
             : ""}
           .
         </p>

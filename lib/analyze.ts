@@ -6,6 +6,7 @@ import { scoreGeo } from "./score-geo";
 import { scoreSpeed } from "./score-speed";
 import { generateAiAdvice } from "./ai-recommendations";
 import { getDomainRating } from "./domain-rating";
+import { getPsiMetrics } from "./psi";
 import type { AnalyzeResult } from "./types";
 import { clamp } from "./score-utils";
 
@@ -44,13 +45,6 @@ export async function analyzeUrl(rawUrl: string): Promise<AnalyzeResult> {
   const seo = scoreSeo(signals);
   const aeo = scoreAeo(signals);
   const geo = scoreGeo(signals);
-  const speed = scoreSpeed(signals);
-  const overallScore = weightedOverall({
-    seo: seo.score,
-    aeo: aeo.score,
-    geo: geo.score,
-    speed: speed.score,
-  });
 
   const compactSignals: AnalyzeResult["signals"] = {
     title: signals.title,
@@ -65,9 +59,6 @@ export async function analyzeUrl(rawUrl: string): Promise<AnalyzeResult> {
     htmlSizeBytes: signals.html.length,
   };
 
-  // Run off-page authority + AI advice in parallel — both are independent of
-  // each other, so running them concurrently adds no extra latency over the
-  // slower of the two.
   let host = "example.com";
   try {
     host = new URL(signals.finalUrl).hostname;
@@ -75,18 +66,33 @@ export async function analyzeUrl(rawUrl: string): Promise<AnalyzeResult> {
     /* keep fallback */
   }
 
-  const [ai, domainRating] = await Promise.all([
-    generateAiAdvice({
-      url: signals.finalUrl,
-      overallScore,
-      seo,
-      aeo,
-      geo,
-      speed,
-      signals: compactSignals,
-    }),
+  // Fetch real Core Web Vitals (PSI) + off-page authority (Open PageRank) in
+  // parallel — both are independent of each other and of scoring. Speed and the
+  // Overall score are computed AFTER this, because Speed uses the PSI metrics
+  // when available and the AI tips reference the final scores. AI advice runs
+  // last since it depends on the scored result.
+  const [psi, domainRating] = await Promise.all([
+    getPsiMetrics(signals.finalUrl),
     getDomainRating(host, { signals }),
   ]);
+
+  const speed = scoreSpeed(signals, psi);
+  const overallScore = weightedOverall({
+    seo: seo.score,
+    aeo: aeo.score,
+    geo: geo.score,
+    speed: speed.score,
+  });
+
+  const ai = await generateAiAdvice({
+    url: signals.finalUrl,
+    overallScore,
+    seo,
+    aeo,
+    geo,
+    speed,
+    signals: compactSignals,
+  });
 
   return {
     url: signals.url,
@@ -99,6 +105,7 @@ export async function analyzeUrl(rawUrl: string): Promise<AnalyzeResult> {
     speed,
     signals: compactSignals,
     domainRating,
+    psiMetrics: psi,
     aiSummary: ai.summary,
     aiRecommendations: ai.recommendations,
     aiSource: ai.source,

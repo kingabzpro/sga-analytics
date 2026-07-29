@@ -88,6 +88,11 @@ export type AnalyzeResult = {
   };
   /** Off-page authority rating. Standalone metric — NOT part of the on-page Overall. */
   domainRating: DomainRating;
+  /**
+   * Real Core Web Vitals from PageSpeed Insights v5. `null` when no API key is
+   * set or the call fails — in that case Speed is scored from on-page heuristics.
+   */
+  psiMetrics: PsiMetrics | null;
   aiSummary: string | null;
   aiRecommendations: string[];
   aiSource: "mistral" | "rules";
@@ -111,6 +116,39 @@ export type DomainRating = {
   globalRank: number | null;
   referringDomains: number | null;
   source: "openpagerank" | "heuristic";
+};
+
+/**
+ * Real Core Web Vitals from the Google PageSpeed Insights API v5
+ * (https://pagespeedonline.googleapis.com), bundling CrUX field data with a
+ * Lighthouse lab run for one URL on mobile.
+ *
+ * `field` (CrUX, 28-day p75 real-user) is the gold standard but is absent for
+ * low-traffic URLs/origins, hence nullable. `lab` (a single mobile Lighthouse
+ * run) is present whenever PSI succeeds and fills in field gaps. `source` is
+ * always "psi" — a null `PsiMetrics` on `AnalyzeResult` signals "no key / call
+ * failed", in which case Speed is scored from on-page heuristics instead.
+ */
+export type PsiMetrics = {
+  field: {
+    lcpMs: number | null;
+    inpMs: number | null;
+    cls: number | null;
+    fcpMs: number | null;
+    ttfbMs: number | null;
+    overall: "FAST" | "AVERAGE" | "SLOW" | "NONE";
+  } | null;
+  lab: {
+    lcpMs: number;
+    cls: number;
+    tbtMs: number;
+    fcpMs: number;
+    speedIndexMs: number;
+    ttfbMs: number;
+    performanceScore: number; // 0..100
+  } | null;
+  strategy: "mobile";
+  source: "psi";
 };
 
 export type AnalyzeError = {

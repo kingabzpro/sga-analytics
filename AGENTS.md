@@ -49,19 +49,22 @@ components/
   motion-helpers.tsx     shared CountUp, AnimatedRing, entrance/stagger variants.
   Logo.tsx
 lib/
-  analyze.ts             ORCHESTRATION. fetch -> extract -> score* -> weighted Overall
-                         + parallel (AI advice, domain rating). OVERALL_WEIGHTS constants live here.
+  analyze.ts             ORCHESTRATION. fetch -> extract -> score (seo/aeo/geo) ->
+                         parallel (PSI, domain rating) -> score speed + weighted Overall
+                         -> AI advice. OVERALL_WEIGHTS constants live here.
   score-utils.ts         the scoring ENGINE: scoreFromChecks (partial credit), buildCategory,
                          clamp, clamp01, ramp, rampDown.
   score-seo.ts           12 checks, blends in seord content score.
   score-aeo.ts           8 checks.
   score-geo.ts           9 checks.
-  score-speed.ts         8 checks.
+  score-speed.ts         7 CWV-led checks (real LCP/INP/CLS/FCP/TBT/TTFB via PSI) OR 8
+                         on-page heuristic checks (zero-config fallback). scoreSpeed(signals, psi).
+  psi.ts                 PageSpeed Insights v5 call, env-gated, heuristic fallback. Never throws.
   ai-recommendations.ts  Mistral call, env-gated, timeout race, rule fallback.
   domain-rating.ts       Open PageRank call, env-gated, heuristic fallback. Never throws.
   fetch-page.ts          outbound fetch (HTML/robots/sitemap/llms) + SSRF guard.
   extract.ts             cheerio signal extraction -> PageSignals.
-  types.ts               CheckResult, CategoryScore, PageSignals, DomainRating, AnalyzeResult.
+  types.ts               CheckResult, CategoryScore, PageSignals, DomainRating, PsiMetrics, AnalyzeResult.
 ```
 
 ## Key conventions (follow these)
@@ -77,9 +80,12 @@ lib/
   20). **Domain Rating is excluded** — it's off-page.
 - **External calls are env-gated with graceful fallback + a `source`
   discriminator** (`aiSource: "mistral"|"rules"`,
-  `domainRating.source: "openpagerank"|"heuristic"`). Never let them throw up to
-  the route handler; degrade to a rule/heuristic result. This is the template for
-  any new integration.
+  `domainRating.source: "openpagerank"|"heuristic"`,
+  `psiMetrics.source: "psi" | null`). Never let them throw up to the route
+  handler; degrade to a rule/heuristic result. This is the template for any new
+  integration. Note: speed scoring depends on PSI, so in `analyze.ts` PSI +
+  domain-rating are fetched in parallel *first*, then speed/Overall are scored,
+  then AI advice runs last (it needs the final scores).
 - **Animation** goes in `motion/react` (not new CSS keyframes). Scroll-triggered
   via `whileInView`/`useInView`; one-shot. Reusable primitives in
   `components/motion-helpers.tsx`.
@@ -93,6 +99,7 @@ lib/
 |----------|---------|
 | `MISTRAL_API_KEY` | Mistral key for AI tips via `mistral-medium-latest` (rule-based fallback otherwise) |
 | `OPEN_PAGE_RANK_API_KEY` | Open PageRank key (`opr_live_...`) for an authoritative Domain Rating (heuristic estimate otherwise) |
+| `PAGESPEED_API_KEY` | Google PageSpeed Insights v5 key for real Core Web Vitals — LCP/INP/CLS/FCP/TBT/TTFB — feeding the Speed score (on-page heuristics otherwise) |
 | `HF_TOKEN` / `FIREWORKS_API_KEY` | Legacy — no longer used since the switch to Mistral; kept for reference |
 
 Never commit real secrets. Only `.env.example` is tracked.
@@ -128,3 +135,29 @@ Never commit real secrets. Only `.env.example` is tracked.
     (now 3 cards: SEO/AEO/GEO) to match the nav and trim copy.
   - Verified: live `/api/analyze` of `abid.work` now returns `aiSource: huggingface`
     (real Mistral tips) in ~5.6s (was 49.7s → rules). `tsc`/`eslint`/`next build` pass.
+- **2026-07-29 (phase 3)** — Real Core Web Vitals via PageSpeed Insights.
+  - Replaced the weakest scoring category — **Speed**, previously all static-HTML
+    heuristics — with **real Core Web Vitals** from the **Google PageSpeed
+    Insights API v5** (`lib/psi.ts`): one `runPagespeed?strategy=mobile&category=performance`
+    call bundles CrUX field data (`loadingExperience`, with origin-level fallback)
+    and a Lighthouse lab run (`lighthouseResult`). New `PsiMetrics` type + `psiMetrics`
+    field on `AnalyzeResult`. Env-gated on `PAGESPEED_API_KEY` with a `source: "psi"`
+    discriminator; returns `null` (→ heuristic Speed) on no-key/failure/timeout,
+    **mirroring the `domain-rating.ts` template exactly** (never throws).
+  - `lib/score-speed.ts` reworked: `scoreSpeed(signals, psi?)` now branches into
+    either a **7-check CWV-led set** (LCP 26 / INP 20 / CLS 18 / FCP 12 / TBT 10 /
+    TTFB 8 / perf 6 — field p75 preferred, lab fills gaps, source labeled in each
+    `detail`) when PSI is present, or the **unchanged 8-check heuristic set** as
+    the zero-config fallback. `scoreFromChecks` normalizes by total weight, so
+    both tables produce valid 0–100 scores without hand-balancing.
+  - Re-ordered `lib/analyze.ts`: PSI + domain-rating fetch in parallel **first**,
+    then speed + weighted Overall scored, then AI advice last (it needs the final
+    scores). PSI runs add ~5–15s to the critical path; worst case stays well under
+    `maxDuration = 60`.
+  - UI: Speed tab gets a "PageSpeed Insights" / "Estimated (no PSI key)" badge
+    (`ScoreCards.tsx`), the footer credits PSI when live, and the page-signals
+    snapshot gains a Core Web Vitals row (`AnalyzerApp.tsx`).
+  - Verified: `tsc`/`eslint`/`next build` pass; PSI response parsing validated
+    against a fixture payload (field+lab, field-only, lab-only, CLS ×100
+    normalization). No-key path returns `psiMetrics: null` and identical Speed
+    scores to pre-phase-3.

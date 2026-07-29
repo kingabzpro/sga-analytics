@@ -180,11 +180,13 @@ function TabPanel({
   subtitle,
   category,
   accent,
+  badge,
 }: {
   title: string;
   subtitle: string;
   category: CategoryScore;
   accent: string;
+  badge?: string;
 }) {
   const failed = category.checks.filter((c) => !c.passed);
   const passed = category.checks.filter((c) => c.passed);
@@ -218,7 +220,14 @@ function TabPanel({
             >
               {title}
             </div>
-            <div className="mt-0.5 text-xs text-slate-500">{subtitle}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-xs text-slate-500">{subtitle}</span>
+              {badge ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-100">
+                  {badge}
+                </span>
+              ) : null}
+            </div>
             <div className="mt-2">
               <div className="mb-1 flex justify-between text-[11px] text-slate-500">
                 <span>
@@ -329,6 +338,11 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
             subtitle="Page performance"
             category={result.speed}
             accent="bg-amber-500"
+            badge={
+              result.psiMetrics?.source === "psi"
+                ? "PageSpeed Insights"
+                : "Estimated (no PSI key)"
+            }
           />
         );
     }
