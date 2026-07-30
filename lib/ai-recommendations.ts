@@ -6,7 +6,9 @@ import type { AnalyzeResult, CategoryScore, CitabilityProbe, PageSignals } from 
 // rule-based tips if no key is set or the call fails/slow — the AI text is an
 // enhancement, never a blocker for the analysis itself.
 const MODEL = "mistral-medium-latest";
-const AI_TIMEOUT_MS = 20000;
+// AI is an enhancement. Give Mistral enough time for a useful answer while
+// retaining a bounded rule fallback for slow/provider-failure cases.
+const AI_TIMEOUT_MS = 8_000;
 
 export type AiAdvice = {
   summary: string | null;

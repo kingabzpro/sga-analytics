@@ -1,7 +1,9 @@
 const USER_AGENT =
   "SGA-Analytics/0.1 (+https://github.com/kingabzpro/sga-analytics; website auditor)";
 
-const FETCH_TIMEOUT_MS = 12000;
+const PAGE_FETCH_TIMEOUT_MS = 3_000;
+const AUX_FETCH_TIMEOUT_MS = 1_000;
+const EXTRACT_FALLBACK_TIMEOUT_MS = 10_000;
 const MAX_HTML_BYTES = 2_000_000;
 
 const BLOCKED_HOSTS = new Set([
@@ -71,7 +73,7 @@ export function isFetchable(href: string): boolean {
 
 async function fetchText(
   url: string,
-  options?: { accept?: string }
+  options?: { accept?: string; timeoutMs?: number }
 ): Promise<{
   ok: boolean;
   status: number;
@@ -83,7 +85,10 @@ async function fetchText(
 }> {
   const start = Date.now();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(
+    () => controller.abort(),
+    options?.timeoutMs ?? PAGE_FETCH_TIMEOUT_MS
+  );
 
   try {
     const res = await fetch(url, {
@@ -121,6 +126,71 @@ async function fetchText(
   }
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/** Convert the useful subset of Jina Reader markdown into semantic HTML so the
+ * existing extraction/scoring pipeline can operate without pretending this is
+ * the origin's raw HTML. */
+function readerMarkdownToHtml(markdown: string): string {
+  const title = markdown.match(/^Title:\s*(.+)$/m)?.[1]?.trim() ?? "";
+  const content = markdown.split(/^Markdown Content:\s*$/m)[1] ?? markdown;
+  const blocks = content.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  const body = blocks
+    .map((block) => {
+      const heading = block.match(/^(#{1,3})\s+([\s\S]+)$/);
+      if (heading) {
+        const level = heading[1].length;
+        return `<h${level}>${escapeHtml(heading[2].replace(/\n+/g, " "))}</h${level}>`;
+      }
+      let text = escapeHtml(block.replace(/\n+/g, " "));
+      text = text.replace(
+        /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)[^)]*\)/g,
+        '<img src="$2" alt="$1">'
+      );
+      text = text.replace(
+        /\[([^\]]+)\]\((https?:\/\/[^)\s]+)[^)]*\)/g,
+        '<a href="$2">$1</a>'
+      );
+      return `<p>${text}</p>`;
+    })
+    .join("");
+  return `<!doctype html><html><head><title>${escapeHtml(title)}</title></head><body><main>${body}</main></body></html>`;
+}
+
+async function fetchViaReader(url: string) {
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), EXTRACT_FALLBACK_TIMEOUT_MS);
+  try {
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      signal: controller.signal,
+      headers: { Accept: "text/plain", "User-Agent": USER_AGENT },
+    });
+    if (!res.ok) return null;
+    const markdown = await res.text();
+    if (!markdown.includes("Markdown Content:") || markdown.length < 200) return null;
+    return {
+      ok: true,
+      status: 200,
+      text: readerMarkdownToHtml(markdown),
+      finalUrl: url,
+      ms: Date.now() - startedAt,
+      headers: {} as Record<string, string>,
+      redirected: false,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type FetchedPage = {
   url: string;
   finalUrl: string;
@@ -136,13 +206,22 @@ export type FetchedPage = {
   /** Phase 4: response headers + redirect info for the Technical category. */
   responseHeaders: Record<string, string>;
   redirected: boolean;
+  fetchSource: "direct" | "reader";
 };
 
 export async function fetchPageBundle(inputUrl: string): Promise<FetchedPage> {
   const url = normalizeUrl(inputUrl);
   const origin = url.origin;
 
-  const page = await fetchText(url.toString());
+  let page = await fetchText(url.toString());
+  let fetchSource: FetchedPage["fetchSource"] = "direct";
+  if ([401, 403, 429].includes(page.status)) {
+    const extracted = await fetchViaReader(url.toString());
+    if (extracted) {
+      page = extracted;
+      fetchSource = "reader";
+    }
+  }
   if (!page.ok && page.status >= 400) {
     throw new Error(`Could not fetch page (HTTP ${page.status})`);
   }
@@ -155,10 +234,11 @@ export async function fetchPageBundle(inputUrl: string): Promise<FetchedPage> {
   const defaultSitemap = `${origin}/sitemap.xml`;
 
   const [robots, llms, sitemap] = await Promise.all([
-    fetchText(robotsUrl, { accept: "text/plain,*/*" }).catch(() => null),
-    fetchText(llmsUrl, { accept: "text/plain,*/*" }).catch(() => null),
+    fetchText(robotsUrl, { accept: "text/plain,*/*", timeoutMs: AUX_FETCH_TIMEOUT_MS }).catch(() => null),
+    fetchText(llmsUrl, { accept: "text/plain,*/*", timeoutMs: AUX_FETCH_TIMEOUT_MS }).catch(() => null),
     fetchText(defaultSitemap, {
       accept: "application/xml,text/xml,text/plain,*/*",
+      timeoutMs: AUX_FETCH_TIMEOUT_MS,
     }).catch(() => null),
   ]);
 
@@ -193,6 +273,7 @@ export async function fetchPageBundle(inputUrl: string): Promise<FetchedPage> {
       if (!sitemapFound) {
         const alt = await fetchText(sitemapUrl, {
           accept: "application/xml,text/xml,text/plain,*/*",
+          timeoutMs: AUX_FETCH_TIMEOUT_MS,
         }).catch(() => null);
         sitemapFound = Boolean(
           alt &&
@@ -220,5 +301,6 @@ export async function fetchPageBundle(inputUrl: string): Promise<FetchedPage> {
     llmsTxtUrl: llmsOk ? llmsUrl : null,
     responseHeaders: page.headers,
     redirected: page.redirected,
+    fetchSource,
   };
 }

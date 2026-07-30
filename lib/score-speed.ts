@@ -133,16 +133,16 @@ function cwvSpeedChecks(psi: PsiMetrics): CheckResult[] {
     });
   }
 
-  // --- FCP (weight 12) — lab (field FCP is less actionable) ---
-  if (lab?.fcpMs != null) {
-    const fcpMs = lab.fcpMs;
+  // --- FCP (weight 12) — field p75 preferred, lab fallback ---
+  const fcpMs = field?.fcpMs ?? lab?.fcpMs ?? null;
+  if (fcpMs !== null) {
     checks.push({
       id: "cwv-fcp",
       label: "First Contentful Paint",
       passed: fcpMs < 3000, // good <1800, poor >3000
       partialScore: clamp01(rampDown(fcpMs, 1800, 3000)),
       weight: 12,
-      detail: `FCP ${fmtMs(fcpMs)} · Lighthouse lab`,
+      detail: `FCP ${fmtMs(fcpMs)} · ${field?.fcpMs != null ? "field p75 (CrUX)" : "Lighthouse lab"}`,
     });
   }
 
@@ -159,16 +159,16 @@ function cwvSpeedChecks(psi: PsiMetrics): CheckResult[] {
     });
   }
 
-  // --- TTFB (weight 8) — lab server-response-time ---
-  if (lab?.ttfbMs != null) {
-    const ttfbMs = lab.ttfbMs;
+  // --- TTFB (weight 8) — field p75 preferred, lab fallback ---
+  const ttfbMs = field?.ttfbMs ?? lab?.ttfbMs ?? null;
+  if (ttfbMs !== null) {
     checks.push({
       id: "cwv-ttfb",
       label: "Time to First Byte",
       passed: ttfbMs < 1800, // good <800, poor >1800
       partialScore: clamp01(rampDown(ttfbMs, 800, 1800)),
       weight: 8,
-      detail: `TTFB ${fmtMs(ttfbMs)} · Lighthouse lab`,
+      detail: `TTFB ${fmtMs(ttfbMs)} · ${field?.ttfbMs != null ? "field p75 (CrUX)" : "Lighthouse lab"}`,
     });
   }
 

@@ -125,9 +125,9 @@ function domainRatingTips(result: AnalyzeResult): string[] {
   );
 
   // If estimate, nudge to set the key for a real number
-  if (dr.source !== "openpagerank") {
+  if (dr.source === "heuristic") {
     tips.push(
-      "Connect an Open PageRank key for a real backlink-based rating — this number is a rough on-page estimate."
+      "Connect an Ahrefs or Open PageRank key for a real backlink-based rating — this number is a rough on-page estimate."
     );
   }
 

@@ -34,7 +34,7 @@ const TABS: { key: TabKey; label: string; accent: string; chip: string }[] = [
 function OverallHero({ result }: { result: AnalyzeResult }) {
   const score = result.overallScore;
   const dr = result.domainRating;
-  const drLive = dr.source === "openpagerank";
+  const drLive = dr.source !== "heuristic";
 
   return (
     <div className="glass-panel relative grid grid-cols-1 gap-5 overflow-hidden rounded-2xl p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-7 sm:p-7">
@@ -119,8 +119,10 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
             <span className="mb-0.5 text-xs text-slate-400">/100</span>
           </div>
           <div className="mt-1 text-[10px] text-slate-400">
-            {drLive
-              ? "Open PageRank"
+            {dr.source === "ahrefs"
+              ? "Ahrefs DR"
+              : drLive
+                ? "Open PageRank"
               : dr.rawRank !== null
                 ? `OPR ${dr.rawRank.toFixed(1)}/10`
                 : "estimate"}
@@ -341,9 +343,11 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
             category={result.speed}
             accent="bg-amber-500"
             badge={
-              result.psiMetrics?.source === "psi"
-                ? "PageSpeed Insights"
-                : "Estimated (no PSI key)"
+              result.psiMetrics?.source === "crux"
+                ? "Chrome UX Report"
+                : result.psiMetrics?.source === "psi"
+                  ? "PageSpeed Insights"
+                : "Estimated (field data unavailable)"
             }
           />
         );

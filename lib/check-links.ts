@@ -7,11 +7,11 @@ const USER_AGENT =
   "SGA-Analytics/0.1 (+https://github.com/kingabzpro/sga-analytics; website auditor)";
 
 /** Max outbound links we will HEAD-check (cost/latency guard). */
-const MAX_LINKS = 15;
+const MAX_LINKS = 10;
 /** Per-link HEAD timeout. */
-const LINK_TIMEOUT_MS = 6000;
+const LINK_TIMEOUT_MS = 1_500;
 /** Max concurrent HEAD requests. */
-const CONCURRENCY = 5;
+const CONCURRENCY = 10;
 
 /**
  * Probe outbound links for reachability. Dedupes, caps at MAX_LINKS, and filters

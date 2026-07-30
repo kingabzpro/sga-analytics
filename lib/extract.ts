@@ -334,6 +334,7 @@ export function extractSignals(page: FetchedPage): PageSignals {
     bodyHtml: bodyHtml || "",
     responseHeaders: page.responseHeaders,
     redirected: page.redirected,
+    fetchSource: page.fetchSource,
     robotsTxt: page.robotsTxt,
     robotsTxtUrl: page.robotsTxtUrl,
     sitemapFound: page.sitemapFound,

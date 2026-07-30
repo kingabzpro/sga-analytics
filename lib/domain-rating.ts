@@ -4,7 +4,10 @@ import { clamp, clamp01, ramp } from "./score-utils";
 /**
  * Domain Rating (off-page authority).
  *
- * Primary path: Open PageRank (https://openpagerank.keywordseverywhere.com).
+ * Primary path: Ahrefs' official free Domain Rating endpoint. It returns the
+ * actual 0..100 logarithmic Ahrefs DR from their backlink index.
+ *
+ * Secondary path: Open PageRank (https://openpagerank.keywordseverywhere.com).
  *   POST /v1/domains/bulk  with header  Authorization: Bearer opr_live_...
  *   body: { domains: [host], include_history: false }
  *   result fields: open_page_rank (0..10), rank (1 = best), referring_domains
@@ -19,7 +22,18 @@ import { clamp, clamp01, ramp } from "./score-utils";
 
 const OPR_ENDPOINT =
   "https://openpagerank.keywordseverywhere.com/v1/domains/bulk";
-const OPR_TIMEOUT_MS = 10_000;
+const AHREFS_ENDPOINT =
+  "https://api.ahrefs.com/v3/public/domain-rating-free";
+const AHREFS_TIMEOUT_MS = 3_000;
+const OPR_TIMEOUT_MS = 4_000;
+
+type AhrefsResponse = {
+  domain_rating?: {
+    domain_rating?: number;
+    license?: string;
+    warning?: string;
+  };
+};
 
 type OprResponse = {
   as_of?: string;
@@ -45,6 +59,46 @@ function resolveHost(input: string): string {
 /** Map the raw 0..10 OPR value to a 0..100 score. */
 function oprToScore(opr: number): number {
   return clamp(Math.round(opr * 10));
+}
+
+async function fetchAhrefsDomainRating(
+  host: string
+): Promise<DomainRating | null> {
+  const endpoint = new URL(AHREFS_ENDPOINT);
+  endpoint.searchParams.set("target", host);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AHREFS_TIMEOUT_MS);
+
+  try {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    // Authentication becomes mandatory on 2026-08-10. The endpoint and keys
+    // remain free; accepting the key now makes deployments future-proof.
+    const key = process.env.AHREFS_API_KEY;
+    if (key) headers.Authorization = `Bearer ${key}`;
+
+    const res = await fetch(endpoint, {
+      method: "GET",
+      signal: controller.signal,
+      headers,
+    });
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as AhrefsResponse;
+    const score = data.domain_rating?.domain_rating;
+    if (typeof score !== "number" || !Number.isFinite(score)) return null;
+
+    return {
+      score: clamp(Math.round(score)),
+      rawRank: null,
+      globalRank: null,
+      referringDomains: null,
+      source: "ahrefs",
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function fetchOpenPageRank(host: string): Promise<DomainRating | null> {
@@ -131,6 +185,9 @@ export async function getDomainRating(
   opts?: { signals?: PageSignals }
 ): Promise<DomainRating> {
   const host = resolveHost(hostInput);
+
+  const ahrefs = await fetchAhrefsDomainRating(host);
+  if (ahrefs) return ahrefs;
 
   const live = await fetchOpenPageRank(host);
   if (live) return live;

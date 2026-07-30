@@ -112,6 +112,28 @@ lib/
 
 Never commit real secrets. Only `.env.example` is tracked.
 
+## Product roadmap
+
+### Next focus — in-house Domain Rating and Speed
+
+The next major product goal is to own both metrics instead of depending on
+third-party scoring APIs:
+
+- **Domain Rating:** build an SGA-owned authority index from independently
+  collected link and domain signals. Never present on-page heuristics as
+  backlink authority. Document the formula, calibration, provenance, freshness,
+  and spam handling.
+- **Speed:** build an SGA-owned browser measurement runner for repeatable lab
+  performance and Core Web Vitals-compatible metrics. Keep the audited-page
+  scrape separate from the performance run so scraping behavior cannot distort
+  Speed scoring.
+- **Transition:** Open PageRank and PageSpeed Insights remain authoritative
+  external sources until the replacements are validated. Preserve env-gated,
+  never-throw fallbacks and source/status discriminators throughout migration.
+- **Acceptance:** benchmark representative sites against current providers,
+  version scoring changes, and switch defaults only after the in-house metrics
+  meet production targets for repeatability, latency, and calibration.
+
 ## Progress log
 
 - **2026-07-29** — Scoring + Domain Rating + interactive stats.
@@ -206,3 +228,34 @@ Never commit real secrets. Only `.env.example` is tracked.
     article returns 5 categories (Overall 74), a `would-cite` Mistral probe
     (score 95), and a fully-populated Technical category. Phase-4 work is **not
     yet deployed** to Vercel (still the phase-3 build until pushed).
+- **2026-07-30 (phase 5)** — Faster evidence pipeline + visible progress.
+  - Made **CrUX-first** field data the default: low-latency 28-day real-user
+    LCP/INP/CLS/FCP/TTFB, with PSI/Lighthouse fallback when CrUX has no record.
+    `SPEED_DATA_MODE=psi` forces the lab path for comparisons.
+  - Bounded page/support-file, authority, and broken-link probes; outbound link
+    checks now run in one capped parallel batch. Mistral keeps an 8-second rule
+    fallback so provider failures never block a report indefinitely.
+  - Added a simple elapsed-time activity log in `AnalyzerApp` so longer
+    provider/Lighthouse runs clearly show the audit stages.
+  - Follow-up: replaced the time-based activity simulation with an NDJSON
+    progress stream (`/api/analyze/stream`). Events now come from actual backend
+    completions and identify provider results versus fallbacks. PSI, authority,
+    links, recommendations, and citability now run concurrently after extraction
+    instead of serializing PSI before Mistral.
+  - Research decision: do not label a single-page heuristic as in-house Domain
+    Rating. A credible replacement needs a continuously crawled backlink graph;
+    evaluate DataForSEO Rank as the next provider-backed integration.
+  - Authority follow-up: integrated the official free **Ahrefs Domain Rating**
+    endpoint as the primary source (actual 0–100 logarithmic DR, ~0.4s observed).
+    Optional `AHREFS_API_KEY` supports the announced 2026-08-10 authentication
+    requirement. Open PageRank is secondary; the on-page fallback remains
+    explicitly labeled as an estimate rather than backlink authority.
+  - Protected-site follow-up: direct 401/403/429 responses now attempt a
+    Jina Reader content fallback. The fallback is source-discriminated
+    (`fetchSource: "reader"`), visibly warns that origin-header checks are
+    limited, and never masquerades as raw origin HTML. Live DataCamp audit:
+    reader extraction succeeded (1,506 words), Ahrefs DR 84, no route error.
+  - Verified: `eslint`, `tsc`, and `next build` pass. Production-mode local
+    audits completed in ~6 seconds on the fast path and ~10.5 seconds on a CrUX
+    miss with the intentionally short initial fallback budget; PSI now has a
+    separate 18-second accuracy budget while the UI keeps the user informed.

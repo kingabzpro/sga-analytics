@@ -78,6 +78,7 @@ export type PageSignals = {
   /** Phase 4: response headers + redirect info for the Technical category. */
   responseHeaders: Record<string, string>;
   redirected: boolean;
+  fetchSource: "direct" | "reader";
   robotsTxt: string | null;
   robotsTxtUrl: string | null;
   sitemapFound: boolean;
@@ -110,11 +111,12 @@ export type AnalyzeResult = {
     aiBots: { name: string; allowed: boolean | null }[];
     loadTimeMs: number;
     htmlSizeBytes: number;
+    fetchSource: "direct" | "reader";
   };
   /** Off-page authority rating. Standalone metric — NOT part of the on-page Overall. */
   domainRating: DomainRating;
   /**
-   * Real Core Web Vitals from PageSpeed Insights v5. `null` when no API key is
+   * Real Core Web Vitals from CrUX (or legacy PSI). `null` when no API key is
    * set or the call fails — in that case Speed is scored from on-page heuristics.
    */
   psiMetrics: PsiMetrics | null;
@@ -128,8 +130,8 @@ export type AnalyzeResult = {
 /**
  * Off-page domain authority (backlink-based).
  *
- * `source: "openpagerank"` is authoritative — fetched live from Open PageRank
- * (https://openpagerank.keywordseverywhere.com). `source: "heuristic"` is a
+ * `source: "ahrefs"` is the actual Ahrefs DR metric. `source: "openpagerank"`
+ * is the secondary backlink-index authority source. `source: "heuristic"` is a
  * rough on-page-derived estimate used only when no API key is set or the
  * request fails; it must never be presented as a real authority number.
  *
@@ -142,18 +144,17 @@ export type DomainRating = {
   rawRank: number | null;
   globalRank: number | null;
   referringDomains: number | null;
-  source: "openpagerank" | "heuristic";
+  source: "ahrefs" | "openpagerank" | "heuristic";
 };
 
 /**
- * Real Core Web Vitals from the Google PageSpeed Insights API v5
- * (https://pagespeedonline.googleapis.com), bundling CrUX field data with a
- * Lighthouse lab run for one URL on mobile.
+ * Real Core Web Vitals from Google. Phase 5 uses the low-latency CrUX API by
+ * default; the legacy PSI parser remains supported for compatibility.
  *
  * `field` (CrUX, 28-day p75 real-user) is the gold standard but is absent for
  * low-traffic URLs/origins, hence nullable. `lab` (a single mobile Lighthouse
  * run) is present whenever PSI succeeds and fills in field gaps. `source` is
- * always "psi" — a null `PsiMetrics` on `AnalyzeResult` signals "no key / call
+ * is "crux" or "psi" — a null `PsiMetrics` on `AnalyzeResult` signals "no key / call
  * failed", in which case Speed is scored from on-page heuristics instead.
  */
 export type PsiMetrics = {
@@ -175,7 +176,7 @@ export type PsiMetrics = {
     performanceScore: number; // 0..100
   } | null;
   strategy: "mobile";
-  source: "psi";
+  source: "crux" | "psi";
 };
 
 export type AnalyzeError = {

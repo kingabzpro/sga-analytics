@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { analyzeUrl } from "@/lib/analyze";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // page fetch + PageSpeed Insights + Mistral
+export const maxDuration = 30; // bounded external calls + transparent UI progress
 
 export async function POST(request: Request) {
   try {

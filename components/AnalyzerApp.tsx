@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import type { AnalyzeResult, PsiMetrics } from "@/lib/types";
 import { Logo } from "./Logo";
 import { ScoreCards } from "./ScoreCards";
 import { Recommendations } from "./Recommendations";
 import { CitabilityCard } from "./CitabilityCard";
+
+type ProgressEntry = {
+  stage: string;
+  message: string;
+  elapsedMs: number;
+};
 
 /** Compact Core Web Vitals readout for the page-signals snapshot.
  *  Prefers field (CrUX p75) values; lab fills the gaps. */
@@ -32,7 +38,12 @@ function CwvRow({ psi }: { psi: PsiMetrics }) {
         {parts.length ? parts.join(" · ") : "No field/lab data"}
         <span className="text-slate-400">
           {" "}
-          · {psi.field ? `field ${psi.field.overall.toLowerCase()}` : "lab only"}
+          ·{" "}
+          {psi.source === "crux"
+            ? "CrUX field p75"
+            : psi.field
+              ? `field ${psi.field.overall.toLowerCase()}`
+              : "lab only"}
         </span>
       </dd>
     </div>
@@ -44,24 +55,79 @@ export function AnalyzerApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [progressEntries, setProgressEntries] = useState<ProgressEntry[]>([]);
+
+  useEffect(() => {
+    if (!loading) return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [loading]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setElapsedSeconds(0);
     setLoading(true);
     setError(null);
     setResult(null);
+    setProgressEntries([]);
 
     try {
-      const res = await fetch("/api/analyze", {
+      const res = await fetch("/api/analyze/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
-      const data = await res.json();
       if (!res.ok) {
+        const data = await res.json().catch(() => null);
         throw new Error(data?.error || "Analysis failed");
       }
-      setResult(data as AnalyzeResult);
+      if (!res.body) throw new Error("Progress stream unavailable");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult: AnalyzeResult | null = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as {
+            type: "progress" | "result" | "error";
+            stage?: string;
+            message?: string;
+            elapsedMs?: number;
+            result?: AnalyzeResult;
+            error?: string;
+          };
+          if (event.type === "progress" && event.message && event.stage) {
+            setProgressEntries((current) => [
+              ...current,
+              {
+                stage: event.stage!,
+                message: event.message!,
+                elapsedMs: event.elapsedMs ?? 0,
+              },
+            ]);
+          } else if (event.type === "result" && event.result) {
+            finalResult = event.result;
+          } else if (event.type === "error") {
+            throw new Error(event.error || "Analysis failed");
+          }
+        }
+        if (done) break;
+      }
+
+      if (!finalResult) throw new Error("Analysis finished without a report");
+      setResult(finalResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -140,19 +206,55 @@ export function AnalyzerApp() {
       </form>
 
       {loading ? (
-        <div className="glass-panel mx-auto mb-8 flex max-w-2xl items-center justify-center gap-3 rounded-2xl px-5 py-4 text-sm text-slate-600">
-          <span className="flex gap-1" aria-hidden>
-            <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-teal-500" />
-            <span
-              className="pulse-dot h-1.5 w-1.5 rounded-full bg-cyan-500"
-              style={{ animationDelay: "0.2s" }}
-            />
-            <span
-              className="pulse-dot h-1.5 w-1.5 rounded-full bg-emerald-400"
-              style={{ animationDelay: "0.4s" }}
-            />
-          </span>
-          Fetching the page, running open-source checks, and generating tips…
+        <div
+          className="glass-panel mx-auto mb-8 max-w-2xl rounded-2xl px-5 py-4 text-sm text-slate-600"
+          aria-live="polite"
+        >
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <span className="font-semibold text-slate-800">Audit in progress</span>
+            <span className="font-mono-nums text-xs text-slate-400">
+              {elapsedSeconds}s
+            </span>
+          </div>
+          <ol className="space-y-2">
+            {progressEntries.map((entry, index) => {
+              const active = index === progressEntries.length - 1;
+              return (
+                <li
+                  key={`${entry.stage}-${entry.elapsedMs}-${index}`}
+                  className={`flex items-center gap-2 ${active ? "text-teal-700" : "text-slate-500"}`}
+                >
+                  <span
+                    className={`grid h-4 w-4 shrink-0 place-items-center rounded-full text-[10px] ${
+                      active
+                        ? "bg-teal-100 text-teal-700"
+                        : "bg-emerald-100 text-emerald-700"
+                    }`}
+                    aria-hidden
+                  >
+                    {active ? "•" : "✓"}
+                  </span>
+                  <span className="min-w-0 flex-1">{entry.message}</span>
+                  <span className="font-mono-nums text-[10px] text-slate-400">
+                    {(entry.elapsedMs / 1000).toFixed(1)}s
+                  </span>
+                </li>
+              );
+            })}
+            {progressEntries.length === 0 ? (
+              <li className="flex items-center gap-2 text-teal-700">
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-teal-100 text-[10px]">
+                  •
+                </span>
+                Connecting to the analyzer…
+              </li>
+            ) : null}
+          </ol>
+          {elapsedSeconds >= 10 ? (
+            <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
+              Still working—some sites and AI responses take a little longer.
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -225,6 +327,11 @@ export function AnalyzerApp() {
                   ms load · {(result.signals.htmlSizeBytes / 1024).toFixed(0)}{" "}
                   KB
                 </p>
+                {result.signals.fetchSource === "reader" ? (
+                  <p className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">
+                    Protected site · content extracted; origin-header checks are limited
+                  </p>
+                ) : null}
               </div>
             </div>
             <ScoreCards result={result} />
@@ -285,7 +392,7 @@ export function AnalyzerApp() {
                   {result.signals.loadTimeMs} ms response
                 </dd>
               </div>
-              {result.psiMetrics?.source === "psi" ? (
+              {result.psiMetrics ? (
                 <CwvRow psi={result.psiMetrics} />
               ) : null}
               <div className="sm:col-span-2">
@@ -315,12 +422,16 @@ export function AnalyzerApp() {
         <p className="text-xs leading-relaxed text-slate-400">
           Open-source checks with cheerio, seord, and robots-parser
           {result?.aiSource === "mistral" ? ", plus mistral-medium" : ""}
-          {result?.domainRating.source === "openpagerank"
-            ? " · domain rating via Open PageRank"
-            : ""}
-          {result?.psiMetrics?.source === "psi"
-            ? " · Core Web Vitals via PageSpeed Insights"
-            : ""}
+          {result?.domainRating.source === "ahrefs"
+            ? " · Domain Rating via Ahrefs"
+            : result?.domainRating.source === "openpagerank"
+              ? " · authority via Open PageRank"
+              : ""}
+          {result?.psiMetrics?.source === "crux"
+            ? " · Core Web Vitals via Chrome UX Report"
+            : result?.psiMetrics?.source === "psi"
+              ? " · Core Web Vitals via PageSpeed Insights"
+              : ""}
           .
         </p>
       </footer>

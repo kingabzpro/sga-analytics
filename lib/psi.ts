@@ -19,7 +19,12 @@ import type { PsiMetrics } from "./types";
 
 const PSI_ENDPOINT =
   "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
-// Lighthouse runs a throttled mobile simulation that can take ~5–15s.
+const CRUX_ENDPOINT =
+  "https://chromeuxreport.googleapis.com/v1/records:queryRecord";
+// Phase 5 latency contract: field data must never dominate the report.
+const CRUX_TIMEOUT_MS = 1_500;
+// A mobile Lighthouse run commonly needs 8–15 seconds. The UI shows live
+// progress, so favor a real result over an inaccurately labeled fast fallback.
 const PSI_TIMEOUT_MS = 18_000;
 
 /** --- Field (CrUX) shape ------------------------------------------------ */
@@ -187,11 +192,84 @@ async function fetchPsi(url: string): Promise<PsiMetrics | null> {
   }
 }
 
+type CruxMetric = { percentiles?: { p75?: number } };
+type CruxResponse = {
+  record?: {
+    metrics?: Record<string, CruxMetric | undefined>;
+  };
+};
+
+function cruxP75(data: CruxResponse, key: string): number | null {
+  const value = data.record?.metrics?.[key]?.percentiles?.p75;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+async function fetchCrux(url: string): Promise<PsiMetrics | null> {
+  const key = process.env.PAGESPEED_API_KEY;
+  if (!key) return null;
+
+  const endpoint = new URL(CRUX_ENDPOINT);
+  endpoint.searchParams.set("key", key);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CRUX_TIMEOUT_MS);
+
+  const query = async (body: { url?: string; origin?: string }) => {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...body,
+        formFactor: "PHONE",
+        metrics: [
+          "largest_contentful_paint",
+          "interaction_to_next_paint",
+          "cumulative_layout_shift",
+          "first_contentful_paint",
+          "experimental_time_to_first_byte",
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as CruxResponse;
+  };
+
+  try {
+    // Prefer page-level data. Low-traffic URLs frequently have no record, so
+    // retry once at origin level while sharing the same 1.5s deadline.
+    const page = await query({ url });
+    const data = page ?? (await query({ origin: new URL(url).origin }));
+    if (!data?.record?.metrics) return null;
+
+    const clsRaw = cruxP75(data, "cumulative_layout_shift");
+    const field: NonNullable<PsiMetrics["field"]> = {
+      lcpMs: cruxP75(data, "largest_contentful_paint"),
+      inpMs: cruxP75(data, "interaction_to_next_paint"),
+      cls: clsRaw === null ? null : clsRaw >= 1 ? clsRaw / 100 : clsRaw,
+      fcpMs: cruxP75(data, "first_contentful_paint"),
+      ttfbMs: cruxP75(data, "experimental_time_to_first_byte"),
+      overall: "NONE",
+    };
+    if (field.lcpMs === null && field.inpMs === null && field.cls === null) {
+      return null;
+    }
+    return { field, lab: null, strategy: "mobile", source: "crux" };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Public entry: fetch real Core Web Vitals for a URL. Returns null when no key
  * is configured, the request fails/times out, or the response is unusable — in
  * all those cases `scoreSpeed` degrades to on-page heuristics.
  */
 export async function getPsiMetrics(url: string): Promise<PsiMetrics | null> {
-  return fetchPsi(url);
+  // PSI's synchronous Lighthouse run commonly takes 5–15 seconds. CrUX is the
+  // default because it supplies the authoritative real-user p75 values within
+  // the report's sub-10-second budget. Opt into PSI only for offline comparison.
+  if (process.env.SPEED_DATA_MODE === "psi") return fetchPsi(url);
+  return (await fetchCrux(url)) ?? fetchPsi(url);
 }
