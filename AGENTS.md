@@ -255,6 +255,9 @@ third-party scoring APIs:
     (`fetchSource: "reader"`), visibly warns that origin-header checks are
     limited, and never masquerades as raw origin HTML. Live DataCamp audit:
     reader extraction succeeded (1,506 words), Ahrefs DR 84, no route error.
+  - Link-check accuracy follow-up: only definitive `404`/`410` responses count
+    as broken. `401`/`403` bot blocks, `429` rate limits, `5xx`, and network
+    uncertainty are reported as unverified and do not reduce the score.
   - Verified: `eslint`, `tsc`, and `next build` pass. Production-mode local
     audits completed in ~6 seconds on the fast path and ~10.5 seconds on a CrUX
     miss with the intentionally short initial fallback budget; PSI now has a

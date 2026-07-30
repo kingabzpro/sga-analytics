@@ -418,22 +418,16 @@ export function AnalyzerApp() {
         </motion.div>
       ) : null}
 
-      <footer className="mt-14 border-t border-slate-200/70 pt-6 text-center">
-        <p className="text-xs leading-relaxed text-slate-400">
-          Open-source checks with cheerio, seord, and robots-parser
-          {result?.aiSource === "mistral" ? ", plus mistral-medium" : ""}
-          {result?.domainRating.source === "ahrefs"
-            ? " · Domain Rating via Ahrefs"
-            : result?.domainRating.source === "openpagerank"
-              ? " · authority via Open PageRank"
-              : ""}
-          {result?.psiMetrics?.source === "crux"
-            ? " · Core Web Vitals via Chrome UX Report"
-            : result?.psiMetrics?.source === "psi"
-              ? " · Core Web Vitals via PageSpeed Insights"
-              : ""}
-          .
-        </p>
+      <footer className="mt-14 border-t border-slate-200/70 pt-5 text-center text-[11px] tracking-wide text-slate-400">
+        <span>© 2026 SGA Analytics · Built with love by </span>
+        <a
+          href="https://www.linkedin.com/in/1abidaliawan/"
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-slate-500 underline decoration-teal-300 underline-offset-4 transition hover:text-teal-700"
+        >
+          Abid Ali Awan ↗
+        </a>
       </footer>
     </div>
   );

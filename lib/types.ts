@@ -24,6 +24,10 @@ export type BrokenLink = {
   url: string;
   status: number | null;
   ok: boolean;
+  /** Only 404/410 are definitive broken links. Bot blocks, rate limits,
+   * timeouts, and server errors are reachable/unknown rather than proof that a
+   * human visitor cannot open the URL. */
+  state: "reachable" | "broken" | "unverified";
 };
 
 export type CategoryScore = {

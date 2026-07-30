@@ -87,7 +87,8 @@ export function scoreTechnical(opts: {
   });
 
   // --- Broken outbound links (weight 28) ---
-  const broken = brokenLinks.filter((l) => !l.ok);
+  const broken = brokenLinks.filter((l) => l.state === "broken");
+  const unverified = brokenLinks.filter((l) => l.state === "unverified");
   const ratioOk =
     brokenLinks.length > 0 ? (brokenLinks.length - broken.length) / brokenLinks.length : 1;
   checks.push({
@@ -100,7 +101,9 @@ export function scoreTechnical(opts: {
       brokenLinks.length === 0
         ? "No outbound links checked"
         : broken.length === 0
-          ? `All ${brokenLinks.length} checked outbound link(s) are reachable`
+          ? unverified.length > 0
+            ? `No broken links found · ${brokenLinks.length - unverified.length} reachable, ${unverified.length} unverified (bot block, rate limit, or timeout)`
+            : `All ${brokenLinks.length} checked outbound link(s) are reachable`
           : `${broken.length} of ${brokenLinks.length} outbound link(s) broken: ${broken
               .slice(0, 3)
               .map((b) => `${b.url} (${b.status ?? "error"})`)

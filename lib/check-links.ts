@@ -16,7 +16,8 @@ const CONCURRENCY = 10;
 /**
  * Probe outbound links for reachability. Dedupes, caps at MAX_LINKS, and filters
  * through the SSRF guard (isFetchable) so private/local hosts are never fetched.
- * Never throws — a failed/timeout request becomes a broken entry with status null.
+ * Never throws. Only definitive HTTP 404/410 responses are marked broken;
+ * bot blocks, rate limits, and network uncertainty are marked unverified.
  *
  * Returns BrokenLink[] for the checked subset (the scorer treats "no links" as
  * full credit, so a capped/empty result is fine).
@@ -65,11 +66,17 @@ async function probeOne(url: string): Promise<BrokenLink> {
       // Drain minimally to free the connection.
       await res.arrayBuffer().catch(() => {});
     }
-    const ok = res.status >= 200 && res.status < 400;
-    return { url, status: res.status, ok };
+    const state: BrokenLink["state"] =
+      res.status === 404 || res.status === 410
+        ? "broken"
+        : res.status >= 200 && res.status < 400
+          ? "reachable"
+          : "unverified";
+    return { url, status: res.status, ok: state !== "broken", state };
   } catch {
-    // Abort (timeout), network error, or DNS failure -> treat as broken.
-    return { url, status: null, ok: false };
+    // A timeout/network error from our server is not proof that the public link
+    // is broken for a browser, so preserve it as unverified.
+    return { url, status: null, ok: true, state: "unverified" };
   } finally {
     clearTimeout(timer);
   }
