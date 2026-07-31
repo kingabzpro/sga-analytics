@@ -17,6 +17,11 @@ export function checkCredit(c: CheckResult): number {
 export function scoreFromChecks(checks: CheckResult[]): number {
   const totalWeight = checks.reduce((s, c) => s + c.weight, 0);
   if (totalWeight <= 0) return 0;
+  // If every check passed, the category is a perfect 100. Partial credit only
+  // applies when at least one check failed — otherwise a check that passes but
+  // carries a <1 partialScore (e.g. an LCP that's under the "poor" bar but not
+  // yet in the "good" band) would make an all-green report score below 100.
+  if (checks.length > 0 && checks.every((c) => c.passed)) return 100;
   const earned = checks.reduce((s, c) => s + c.weight * checkCredit(c), 0);
   return Math.round((earned / totalWeight) * 100);
 }
