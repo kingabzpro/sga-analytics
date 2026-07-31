@@ -265,11 +265,17 @@ async function fetchCrux(url: string): Promise<PsiMetrics | null> {
  * Public entry: fetch real Core Web Vitals for a URL. Returns null when no key
  * is configured, the request fails/times out, or the response is unusable — in
  * all those cases `scoreSpeed` degrades to on-page heuristics.
+ *
+ * PSI (Lighthouse lab data) is the default. CrUX field data is the gold
+ * standard, but a single Google API key is often authorized for only one of the
+ * two services (a PSI key is commonly `API_KEY_SERVICE_BLOCKED` for CrUX); in
+ * that case the CrUX call just burns ~0.8s before returning null. Set
+ * `SPEED_DATA_MODE=crux` to try field data first (needs a key authorized for
+ * the Chrome UX Report API).
  */
 export async function getPsiMetrics(url: string): Promise<PsiMetrics | null> {
-  // PSI's synchronous Lighthouse run commonly takes 5–15 seconds. CrUX is the
-  // default because it supplies the authoritative real-user p75 values within
-  // the report's sub-10-second budget. Opt into PSI only for offline comparison.
-  if (process.env.SPEED_DATA_MODE === "psi") return fetchPsi(url);
-  return (await fetchCrux(url)) ?? fetchPsi(url);
+  if (process.env.SPEED_DATA_MODE === "crux") {
+    return (await fetchCrux(url)) ?? fetchPsi(url);
+  }
+  return fetchPsi(url);
 }

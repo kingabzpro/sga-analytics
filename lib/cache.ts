@@ -126,8 +126,16 @@ export async function analyzeUrlCached(
   // 3. Miss — run it, register the promise so concurrent callers join us, and
   //    cache the result when it resolves. On failure we clear the inflight slot
   //    (never poisoning it) and rethrow so the handler reports the error.
+  //
+  //    We deliberately skip caching when the Speed score came from the on-page
+  //    heuristic fallback (`psiMetrics === null`). PSI/CrUX rate-limit
+  //    responses return null transiently, and caching that would lock a
+  //    "field data unavailable" result in for the whole TTL — so the next
+  //    request re-runs and gets a fresh shot at real Core Web Vitals.
   const promise = analyzeUrl(rawUrl, options).then((result) => {
-    writeCache(key, result);
+    if (result.psiMetrics !== null) {
+      writeCache(key, result);
+    }
     inflight.delete(key);
     return result;
   });
