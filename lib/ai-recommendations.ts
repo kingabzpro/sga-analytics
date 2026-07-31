@@ -26,8 +26,8 @@ function ruleFallback(
 ): AiAdvice {
   const tips = [
     ...seo.recommendations.map((t) => `[SEO] ${t}`),
-    ...aeo.recommendations.map((t) => `[AEO] ${t}`),
     ...geo.recommendations.map((t) => `[GEO] ${t}`),
+    ...aeo.recommendations.map((t) => `[AEO] ${t}`),
     ...speed.recommendations.map((t) => `[SPD] ${t}`),
     ...technical.recommendations.map((t) => `[TECH] ${t}`),
   ].slice(0, 8);
@@ -186,12 +186,12 @@ export async function generateAiAdvice(input: {
     ...input.seo.checks
       .filter((c) => !c.passed)
       .map((c) => `SEO: ${c.label}: ${c.detail}`),
-    ...input.aeo.checks
-      .filter((c) => !c.passed)
-      .map((c) => `AEO: ${c.label}: ${c.detail}`),
     ...input.geo.checks
       .filter((c) => !c.passed)
       .map((c) => `GEO: ${c.label}: ${c.detail}`),
+    ...input.aeo.checks
+      .filter((c) => !c.passed)
+      .map((c) => `AEO: ${c.label}: ${c.detail}`),
     ...input.speed.checks
       .filter((c) => !c.passed)
       .map((c) => `SPD: ${c.label}: ${c.detail}`),

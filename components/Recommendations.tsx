@@ -13,19 +13,19 @@ const CATEGORY_META: Record<
     badge: "text-teal-700",
     dot: "bg-teal-500",
   },
-  AEO: {
-    label: "AEO",
-    rail: "bg-cyan-500",
-    chip: "bg-cyan-100 text-cyan-800",
-    badge: "text-cyan-700",
-    dot: "bg-cyan-500",
-  },
   GEO: {
     label: "GEO",
     rail: "bg-emerald-500",
     chip: "bg-emerald-100 text-emerald-800",
     badge: "text-emerald-700",
     dot: "bg-emerald-500",
+  },
+  AEO: {
+    label: "AEO",
+    rail: "bg-cyan-500",
+    chip: "bg-cyan-100 text-cyan-800",
+    badge: "text-cyan-700",
+    dot: "bg-cyan-500",
   },
   SPD: {
     label: "Speed",
@@ -150,8 +150,8 @@ function domainRatingTips(result: AnalyzeResult): string[] {
 function ruleFallbackTips(result: AnalyzeResult): string[] {
   return [
     ...result.seo.recommendations.map((t) => `[SEO] ${t}`),
-    ...result.aeo.recommendations.map((t) => `[AEO] ${t}`),
     ...result.geo.recommendations.map((t) => `[GEO] ${t}`),
+    ...result.aeo.recommendations.map((t) => `[AEO] ${t}`),
     ...result.speed.recommendations.map((t) => `[SPD] ${t}`),
     ...result.technical.recommendations.map((t) => `[TECH] ${t}`),
     ...domainRatingTips(result),
@@ -215,8 +215,8 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
 
   const groups: Record<Category, string[]> = {
     SEO: [],
-    AEO: [],
     GEO: [],
+    AEO: [],
     SPD: [],
     TECH: [],
     DR: [],
@@ -234,13 +234,13 @@ export function Recommendations({ result }: { result: AnalyzeResult }) {
 
   // Spread any untagged tips evenly across the categories
   if (untagged.length > 0) {
-    const order: Category[] = ["SEO", "AEO", "GEO", "SPD", "TECH", "DR"];
+    const order: Category[] = ["SEO", "GEO", "AEO", "SPD", "TECH", "DR"];
     untagged.forEach((body, i) => {
       groups[order[i % order.length]].push(body);
     });
   }
 
-  const orderedCategories: Category[] = ["SEO", "AEO", "GEO", "SPD", "TECH", "DR"];
+  const orderedCategories: Category[] = ["SEO", "GEO", "AEO", "SPD", "TECH", "DR"];
   const visibleGroups = orderedCategories
     .map((c) => ({ category: c, tips: groups[c] }))
     .filter((g) => g.tips.length > 0);

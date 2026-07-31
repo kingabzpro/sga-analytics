@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyzeUrl } from "@/lib/analyze";
+import { analyzeUrlCached } from "@/lib/cache";
 
 export const runtime = "nodejs";
 export const maxDuration = 30; // bounded external calls + transparent UI progress
@@ -13,8 +13,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    const result = await analyzeUrl(url);
-    return NextResponse.json(result);
+    const { result, cached } = await analyzeUrlCached(url);
+    return NextResponse.json(result, {
+      headers: { "X-Cache": cached ? "HIT" : "MISS" },
+    });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to analyze website";

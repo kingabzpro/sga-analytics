@@ -1,4 +1,4 @@
-import { analyzeUrl } from "@/lib/analyze";
+import { analyzeUrlCached } from "@/lib/cache";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -20,12 +20,12 @@ export async function POST(request: Request) {
         );
       };
 
-      void analyzeUrl(url, {
+      void analyzeUrlCached(url, {
         onProgress(event) {
           send({ type: "progress", ...event });
         },
       })
-        .then((result) => send({ type: "result", result }))
+        .then(({ result, cached }) => send({ type: "result", result, cached }))
         .catch((error: unknown) => {
           send({
             type: "error",

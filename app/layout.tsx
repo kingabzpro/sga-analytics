@@ -21,9 +21,9 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SGA Analytics | SEO, AEO & GEO Scores",
+  title: "SGA Analytics | SEO, GEO & AEO Scores",
   description:
-    "Paste a URL to score SEO, Answer Engine Optimization (AEO), and Generative Engine Optimization (GEO) with clear, actionable tips.",
+    "Paste a URL to score SEO, Generative Engine Optimization (GEO), and Answer Engine Optimization (AEO) with clear, actionable tips.",
   // icon.tsx (32×32 PNG) and apple-icon.tsx (180×180 PNG) are auto-wired via
   // the file conventions — only the SVG (in /public) needs a manual entry here.
   icons: {
@@ -33,8 +33,8 @@ export const metadata: Metadata = {
   openGraph: {
     title: "SGA Analytics",
     description:
-      "Score any website for SEO, AEO, and GEO. Get checks and practical improvement tips.",
-    images: ["/logo-mark.jpg"],
+      "Score any website for SEO, GEO, and AEO. Get checks and practical improvement tips.",
+    images: ["/logo-mark.png"],
   },
 };
 

@@ -23,8 +23,8 @@ type TabKey = "SEO" | "AEO" | "GEO" | "Speed" | "Technical";
 
 const TABS: { key: TabKey; label: string; accent: string; chip: string }[] = [
   { key: "SEO", label: "SEO", accent: "teal", chip: "bg-teal-500" },
-  { key: "AEO", label: "AEO", accent: "cyan", chip: "bg-cyan-500" },
   { key: "GEO", label: "GEO", accent: "emerald", chip: "bg-emerald-500" },
+  { key: "AEO", label: "AEO", accent: "cyan", chip: "bg-cyan-500" },
   { key: "Speed", label: "Speed", accent: "amber", chip: "bg-amber-500" },
   { key: "Technical", label: "Technical", accent: "violet", chip: "bg-violet-500" },
 ];
@@ -73,7 +73,7 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
             </span>
           </div>
           <p className="mt-1.5 max-w-md text-sm leading-relaxed text-slate-500">
-            Weighted blend of SEO, AEO, GEO, and Speed. Explore each area in the
+            Weighted blend of SEO, GEO, AEO, and Speed. Explore each area in the
             tabs below.
           </p>
         </div>
@@ -81,8 +81,8 @@ function OverallHero({ result }: { result: AnalyzeResult }) {
           {(
             [
               ["SEO", result.seo.score],
-              ["AEO", result.aeo.score],
               ["GEO", result.geo.score],
+              ["AEO", result.aeo.score],
               ["Speed", result.speed.score],
               ["Tech", result.technical.score],
             ] as [string, number][]
@@ -367,8 +367,10 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
     <div className="space-y-4">
       <OverallHero result={result} />
 
-      {/* Tab bar */}
-      <div className="glass-panel flex gap-1 rounded-2xl p-1.5">
+      {/* Tab bar — wraps to a 3+2 grid on narrow screens so every tab stays
+          visible (no off-canvas overflow, no hidden scroll), and distributes
+          evenly across one row on sm+ where there is room. */}
+      <div className="glass-panel flex flex-wrap gap-1 rounded-2xl p-1.5">
         {TABS.map((t) => {
           const isActive = t.key === active;
           const s =
@@ -386,7 +388,7 @@ export function ScoreCards({ result }: { result: AnalyzeResult }) {
               key={t.key}
               type="button"
               onClick={() => setActive(t.key)}
-              className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors sm:px-4 ${
+              className={`relative flex basis-[calc(50%-0.25rem)] items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors sm:basis-0 sm:flex-1 sm:px-4 ${
                 isActive
                   ? "text-white"
                   : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"

@@ -13,7 +13,15 @@ import type { AnalyzeResult } from "./types";
 import { clamp } from "./score-utils";
 
 export type AnalyzeProgress = {
-  stage: "fetch" | "score" | "speed" | "authority" | "links" | "ai" | "complete";
+  stage:
+    | "fetch"
+    | "score"
+    | "speed"
+    | "authority"
+    | "links"
+    | "ai"
+    | "complete"
+    | "cache";
   message: string;
 };
 

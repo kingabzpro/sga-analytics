@@ -55,6 +55,7 @@ export function AnalyzerApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
+  const [cached, setCached] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [progressEntries, setProgressEntries] = useState<ProgressEntry[]>([]);
 
@@ -73,6 +74,7 @@ export function AnalyzerApp() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setCached(false);
     setProgressEntries([]);
 
     try {
@@ -106,6 +108,7 @@ export function AnalyzerApp() {
             message?: string;
             elapsedMs?: number;
             result?: AnalyzeResult;
+            cached?: boolean;
             error?: string;
           };
           if (event.type === "progress" && event.message && event.stage) {
@@ -119,6 +122,7 @@ export function AnalyzerApp() {
             ]);
           } else if (event.type === "result" && event.result) {
             finalResult = event.result;
+            setCached(Boolean(event.cached));
           } else if (event.type === "error") {
             throw new Error(event.error || "Analysis failed");
           }
@@ -153,10 +157,10 @@ export function AnalyzerApp() {
         </p>
         <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
           Score any site for{" "}
-          <span className="text-brand-gradient">SEO, AEO &amp; GEO</span>
+          <span className="text-brand-gradient">SEO, GEO &amp; AEO</span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-600 sm:text-base">
-          Paste a URL to audit on-page SEO, answer-engine, and generative-engine
+          Paste a URL to audit on-page SEO, generative-engine, and answer-engine
           signals — plus practical ways to improve.
         </p>
       </header>
@@ -273,14 +277,14 @@ export function AnalyzerApp() {
               tone: "text-teal-700 bg-teal-50 ring-teal-100",
             },
             {
-              title: "AEO",
-              body: "Answer-ready pages with clear Q&A patterns and snippet-friendly layout.",
-              tone: "text-cyan-700 bg-cyan-50 ring-cyan-100",
-            },
-            {
               title: "GEO",
               body: "Structured data, AI crawl access, and trust signals for generative engines.",
               tone: "text-emerald-700 bg-emerald-50 ring-emerald-100",
+            },
+            {
+              title: "AEO",
+              body: "Answer-ready pages with clear Q&A patterns and snippet-friendly layout.",
+              tone: "text-cyan-700 bg-cyan-50 ring-cyan-100",
             },
           ].map((item) => (
             <div
@@ -330,6 +334,13 @@ export function AnalyzerApp() {
                 {result.signals.fetchSource === "reader" ? (
                   <p className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">
                     Protected site · content extracted; origin-header checks are limited
+                  </p>
+                ) : null}
+                {cached ? (
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-medium text-teal-700 ring-1 ring-teal-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+                    Cached · served from a recent analysis (analyzed{" "}
+                    {new Date(result.analyzedAt).toLocaleString()})
                   </p>
                 ) : null}
               </div>

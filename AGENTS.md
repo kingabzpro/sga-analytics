@@ -38,7 +38,8 @@ estimate. Everything works with **zero env config** via graceful fallbacks.
 
 ```
 app/
-  api/analyze/route.ts   POST { url } -> AnalyzeResult. runtime="nodejs", maxDuration=60.
+  api/analyze/route.ts   POST { url } -> AnalyzeResult (cached 10 min, X-Cache header). runtime="nodejs", maxDuration=30.
+  api/analyze/stream/    NDJSON progress stream variant of the same (cached; tags the result event with `cached`).
   layout.tsx, page.tsx   root layout; home renders <AnalyzerApp/>.
   globals.css            teal/cyan design system + a few CSS keyframes.
 components/
@@ -63,6 +64,8 @@ lib/
   score-technical.ts     5 checks (phase 4): security headers, HTTPS enforced, redirect chain,
                          image dimensions, broken outbound links. scoreTechnical({signals, brokenLinks}).
   check-links.ts         bounded parallel HEAD probe of outbound links (cap 15, SSRF-guarded). Never throws.
+  cache.ts               phase 6: 10-min TTL analysis cache + in-flight request coalescing. analyzeUrlCached()
+                         wraps analyzeUrl (kept pure). In-memory only (warm-instance scope on serverless).
   psi.ts                 PageSpeed Insights v5 call, env-gated, heuristic fallback. Never throws.
   ai-recommendations.ts  Mistral tips + the LLM citability probe (generateCitabilityProbe). Env-gated, never throws.
   domain-rating.ts       Open PageRank call, env-gated, heuristic fallback. Never throws.
@@ -262,3 +265,31 @@ third-party scoring APIs:
     audits completed in ~6 seconds on the fast path and ~10.5 seconds on a CrUX
     miss with the intentionally short initial fallback budget; PSI now has a
     separate 18-second accuracy budget while the UI keeps the user informed.
+- **2026-07-31 (phase 6)** — 10-minute analysis cache + in-flight coalescing.
+  - New `lib/cache.ts`: a TTL'd (`ANALYZE_CACHE_TTL_MS = 10 min`) **in-memory**
+    result cache plus **in-flight request coalescing**. `analyzeUrlCached()`
+    wraps `analyzeUrl` (kept a pure analysis function). On a completed hit the
+    full provider pipeline (Ahrefs → CrUX/PSI → Mistral → broken-link probe) is
+    skipped and the cached result is served instantly; on an in-flight hit the
+    second caller joins the running promise instead of starting a second audit.
+    `cacheKey()` reuses `normalizeUrl` (same 400/502 errors as today) and
+    canonicalizes host+path+search (scheme → `https://`, trailing slash stripped).
+    Memory is bounded (`MAX_ENTRIES = 100`, oldest-first eviction); lazy
+    eviction on read; inflight slot is always cleared on settle, never poisoned.
+  - `result.analyzedAt` is **not** refreshed on a cache hit, so the report stays
+    honest about when the page was actually fetched.
+  - **Transparency follows the source-discriminator pattern:** the stream tags
+    its terminal `result` event with `cached`, the non-stream route returns an
+    `X-Cache: HIT|MISS` header, and `AnalyzerApp` shows a teal "Cached · served
+    from a recent analysis" pill with the original analysis timestamp. A
+    `stage: "cache"` progress event (`"Served from cache · analyzed N min ago"`
+    / `"…already running — joining it"`) feeds the existing activity log; the
+    `AnalyzeProgress` stage union gained `"cache"`.
+  - **Serverless caveat (documented):** this is an in-memory, module-level cache,
+    so it persists only within a **warm** instance — cold starts and concurrent
+    instances do not share it. It still de-duplicates rapid re-analyses and saves
+    provider spend within a warm instance. A durable store (Vercel KV / Upstash)
+    layered as an env-gated second tier is the documented future upgrade; it was
+    intentionally not added to preserve the project's zero-config ethos.
+  - Verified: `tsc`, `eslint`, and `next build` all pass; both route handlers
+    compile as dynamic (`ƒ`) functions.

@@ -123,7 +123,7 @@ export function Logo({
           <span
             className={`mt-1.5 font-semibold uppercase tracking-[0.2em] text-teal-700/80 ${s.sub}`}
           >
-            SEO · AEO · GEO
+            SEO · GEO · AEO
           </span>
         </div>
       ) : null}
