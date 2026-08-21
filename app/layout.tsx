@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Fraunces, JetBrains_Mono } from "next/font/google";
+import { isClerkConfigured } from "@/lib/auth";
+import { ClerkProviderClient } from "@/components/ClerkProviderClient";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -43,13 +45,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const clerkEnabled = isClerkConfigured();
+
   return (
     <html
       lang="en"
       className={`${dmSans.variable} ${fraunces.variable} ${jetbrains.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        {children}
+        {clerkEnabled ? (
+          <ClerkProviderClient>{children}</ClerkProviderClient>
+        ) : (
+          children
+        )}
       </body>
     </html>
   );

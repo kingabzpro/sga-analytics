@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/localizations": "^4.15.5",
+    "@clerk/nextjs": "^7.8.0",
     "@mistralai/mistralai": "^2.5.0",
     "cheerio": "^1.2.0",
     "motion": "^12.43.0",

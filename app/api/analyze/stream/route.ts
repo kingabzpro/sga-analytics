@@ -1,9 +1,13 @@
 import { analyzeUrlCached } from "@/lib/cache";
+import { requireSignIn } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
+  const denied = await requireSignIn();
+  if (denied) return denied;
+
   const body = await request.json().catch(() => null);
   const url = typeof body?.url === "string" ? body.url : "";
   if (!url.trim()) {

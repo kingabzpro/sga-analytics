@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { analyzeUrlCached } from "@/lib/cache";
+import { requireSignIn } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 30; // bounded external calls + transparent UI progress
 
 export async function POST(request: Request) {
+  // Outside the try so a 401/503 is never remapped to a 400/502 by the catch.
+  const denied = await requireSignIn();
+  if (denied) return denied;
+
   try {
     const body = await request.json().catch(() => null);
     const url = typeof body?.url === "string" ? body.url : "";

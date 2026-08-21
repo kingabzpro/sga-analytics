@@ -7,6 +7,9 @@ import { Logo } from "./Logo";
 import { ScoreCards } from "./ScoreCards";
 import { Recommendations } from "./Recommendations";
 import { CitabilityCard } from "./CitabilityCard";
+import { EmailGate } from "./EmailGate";
+import { UserButton } from "@clerk/nextjs";
+import { clerkAppearance } from "@/lib/clerk-theme";
 
 type ProgressEntry = {
   stage: string;
@@ -50,7 +53,7 @@ function CwvRow({ psi }: { psi: PsiMetrics }) {
   );
 }
 
-export function AnalyzerApp() {
+export function AnalyzerApp({ authEnabled = false }: { authEnabled?: boolean }) {
   const [url, setUrl] = useState("https://example.com");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,32 +142,8 @@ export function AnalyzerApp() {
     }
   }
 
-  return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:py-14">
-      <nav className="mb-10 flex items-center justify-between gap-4">
-        <Logo size="md" />
-        <div className="hidden items-center gap-2 sm:flex">
-          <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-teal-100">
-            Free URL audit
-          </span>
-        </div>
-      </nav>
-
-      <header className="mx-auto mb-10 max-w-3xl text-center">
-        <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800 ring-1 ring-teal-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-          Website scoring
-        </p>
-        <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
-          Score any site for{" "}
-          <span className="text-brand-gradient">SEO, GEO &amp; AEO</span>
-        </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-600 sm:text-base">
-          Paste a URL to audit on-page SEO, generative-engine, and answer-engine
-          signals — plus practical ways to improve.
-        </p>
-      </header>
-
+  const analyzerBody = (
+    <>
       <form
         onSubmit={onSubmit}
         className="glass-panel mx-auto mb-8 flex w-full max-w-2xl flex-col gap-3 rounded-2xl p-2 sm:flex-row sm:items-center sm:gap-2 sm:p-2"
@@ -265,42 +244,6 @@ export function AnalyzerApp() {
       {error ? (
         <div className="mx-auto mb-8 max-w-2xl rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
           {error}
-        </div>
-      ) : null}
-
-      {!result && !loading && !error ? (
-        <div className="mx-auto mb-4 grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            {
-              title: "SEO",
-              body: "Titles, meta, structure, and content signals search engines rely on.",
-              tone: "text-teal-700 bg-teal-50 ring-teal-100",
-            },
-            {
-              title: "GEO",
-              body: "Structured data, AI crawl access, and trust signals for generative engines.",
-              tone: "text-emerald-700 bg-emerald-50 ring-emerald-100",
-            },
-            {
-              title: "AEO",
-              body: "Answer-ready pages with clear Q&A patterns and snippet-friendly layout.",
-              tone: "text-cyan-700 bg-cyan-50 ring-cyan-100",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              className="glass-panel rounded-2xl px-4 py-4 text-left"
-            >
-              <div
-                className={`inline-flex rounded-md px-2 py-0.5 font-mono-nums text-[11px] font-semibold uppercase tracking-[0.16em] ring-1 ${item.tone}`}
-              >
-                {item.title}
-              </div>
-              <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
-                {item.body}
-              </p>
-            </div>
-          ))}
         </div>
       ) : null}
 
@@ -428,6 +371,32 @@ export function AnalyzerApp() {
           </details>
         </motion.div>
       ) : null}
+    </>
+  );
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:py-14">
+      <nav className="mb-8 flex items-center justify-between gap-4">
+        <Logo size="md" />
+        {authEnabled ? (
+          <UserButton appearance={clerkAppearance} />
+        ) : (
+          <div className="hidden items-center gap-2 sm:flex">
+            <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-teal-100">
+              Free URL audit
+            </span>
+          </div>
+        )}
+      </nav>
+
+      <header className="mx-auto mb-8 max-w-3xl text-center">
+        <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
+          Score any site for{" "}
+          <span className="text-brand-gradient">SEO, GEO &amp; AEO</span>
+        </h1>
+      </header>
+
+      {authEnabled ? <EmailGate>{analyzerBody}</EmailGate> : analyzerBody}
 
       <footer className="mt-14 border-t border-slate-200/70 pt-5 text-center text-[11px] tracking-wide text-slate-400">
         <span>© 2026 SGA Analytics · Built with love by </span>

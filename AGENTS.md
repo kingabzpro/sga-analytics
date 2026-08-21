@@ -39,11 +39,19 @@ estimate. Everything works with **zero env config** via graceful fallbacks.
 ```
 app/
   api/analyze/route.ts   POST { url } -> AnalyzeResult (cached 10 min, X-Cache header). runtime="nodejs", maxDuration=30.
+                         Env-gated Clerk check (requireSignIn) before anything else.
   api/analyze/stream/    NDJSON progress stream variant of the same (cached; tags the result event with `cached`).
-  layout.tsx, page.tsx   root layout; home renders <AnalyzerApp/>.
+  sign-in/page.tsx       Clerk <SignIn/> page (redirects away when auth is off).
+  layout.tsx, page.tsx   root layout (conditional <ClerkProvider>); home renders <AnalyzerApp authEnabled>.
   globals.css            teal/cyan design system + a few CSS keyframes.
+proxy.ts                 Next 16 renamed middleware->proxy. clerkMiddleware() only when BOTH
+                         Clerk keys are set; otherwise a pass-through (zero-config, no keyless dev mode).
 components/
-  AnalyzerApp.tsx        client component: URL form, fetch to /api/analyze, results layout.
+  AnalyzerApp.tsx        client component: URL form, fetch to /api/analyze/stream, results layout.
+                         With authEnabled, the form/progress/results block is wrapped in <EmailGate/>.
+  EmailGate.tsx          Clerk magic-link gate: <Show when="signed-out"> shows the themed <SignIn/>;
+                         <Show when="signed-in"> renders children. NOTE: Clerk Core 3 (v7) REMOVED
+                         <SignedIn>/<SignedOut> (throw at runtime) — always use <Show>.
   CitabilityCard.tsx     phase-4 flagship: "would ChatGPT cite this?" verdict card (Mistral + rule fallback).
   ScoreCards.tsx         animated SVG ring gauges (Overall + 5 categories) + Domain Rating hero + tabbed checks.
   Recommendations.tsx    AI/rule tips bucketed by category (SEO/AEO/GEO/SPD/TECH/DR).
@@ -75,6 +83,10 @@ lib/
                          readability/definition + image-dimension counts).
   types.ts               CheckResult, CategoryScore, PageSignals, DomainRating, PsiMetrics,
                          BrokenLink, CitabilityProbe, AnalyzeResult.
+  auth.ts                Clerk env-gating: isClerkConfigured() (publishable key only —
+                         render-side, since NEXT_PUBLIC vars are build-time inlined) and
+                         requireSignIn() (runtime both-keys check, fail-closed 401, never throws).
+  clerk-theme.ts         Clerk appearance prop matching the teal design system.
 ```
 
 ## Key conventions (follow these)
@@ -109,6 +121,7 @@ lib/
 | Variable | Purpose |
 |----------|---------|
 | `MISTRAL_API_KEY` | Mistral key for AI tips via `mistral-medium-latest` (rule-based fallback otherwise) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | Clerk email magic-link login gate. With BOTH set, visitors must sign in before auditing (UI gate + server-side 401 on `/api/analyze*`); without them the app is fully open. `NEXT_PUBLIC_*` is inlined at build time — set before deploy. Optional `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` avoids a Clerk Next 16 proxy redirect bug. The magic-link factor itself is enabled in the Clerk Dashboard (Email → "Email verification link"). |
 | `OPEN_PAGE_RANK_API_KEY` | Open PageRank key (`opr_live_...`) for an authoritative Domain Rating (heuristic estimate otherwise) |
 | `PAGESPEED_API_KEY` | Google PageSpeed Insights v5 key for real Core Web Vitals — LCP/INP/CLS/FCP/TBT/TTFB — feeding the Speed score (on-page heuristics otherwise) |
 | `HF_TOKEN` / `FIREWORKS_API_KEY` | Legacy — no longer used since the switch to Mistral; kept for reference |
@@ -291,5 +304,227 @@ third-party scoring APIs:
     provider spend within a warm instance. A durable store (Vercel KV / Upstash)
     layered as an env-gated second tier is the documented future upgrade; it was
     intentionally not added to preserve the project's zero-config ethos.
+- **2026-08-22 (auth gate)** — Clerk email magic-link login (phase 7 Track C,
+  pulled forward). Users must enter an email and click a magic link before they
+  can audit; the gate is a hard requirement whenever Clerk keys are set.
+  - `@clerk/nextjs` 7.8.0 (peers allow Next ^16.1 / React ~19.2.3). Next 16
+    renamed `middleware.ts` → **`proxy.ts`**; Clerk's `clerkMiddleware()` is
+    default-exported from there with Clerk's official matcher (the `/__clerk/*`
+    entries are required for magic-link verification).
+  - **Env-gating split on purpose:** the render side (`isClerkConfigured()` in
+    `lib/auth.ts`, used by layout's conditional `<ClerkProvider>`, home, and
+    `/sign-in`) checks ONLY `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` because
+    NEXT_PUBLIC vars are inlined at build time — a both-keys check would bake
+    `false` into statically prerendered pages when keys are runtime-only. The
+    enforcement side (`requireSignIn()`) checks both keys per request at
+    runtime, returns 401 when signed out, and 503 when only the publishable
+    key is set (misconfiguration surfaced, never silent). Fail-closed on Clerk
+    errors — this gate protects paid-provider spend.
+  - `components/EmailGate.tsx`: `<Show when="signed-out">` shows the themed
+    prebuilt `<SignIn fallbackRedirectUrl="/">` (enter email → "check your
+    inbox" → click link → signed in; 10-min link TTL, 30s resend cooldown);
+    `<Show when="signed-in">` renders the auditor. Clerk Core 3 (v7) REMOVED
+    `<SignedIn>`/`<SignedOut>` — they throw at runtime; `<Show>` is the
+    replacement (returns null while auth loads, so no gate flash).
+    Magic link itself is a **Clerk Dashboard toggle** (Email → "Email
+    verification link"), not a component prop. Nav's "Free URL audit" pill
+    swaps for `<UserButton>` (no `afterSignOutUrl` in v7) when auth is on.
+    `lib/clerk-theme.ts` themes Clerk to the teal design tokens.
+  - `/api/analyze` and `/api/analyze/stream` both call `requireSignIn()` first
+    (outside the try/catch in the non-stream route so 401 isn't remapped to
+    502); the existing client error banner already renders the `{ error }` 401
+    shape. New `/sign-in` page serves as `NEXT_PUBLIC_CLERK_SIGN_IN_URL` target
+    (avoids clerk/javascript#8302, a Next 16 proxy redirect bug) and redirects
+    away when auth is off.
+  - Clerk user data stays in Clerk (we read only `userId` server-side — no
+    Backend API call on the audit path; no email storage on our side).
+  - Zero-config verified: with no Clerk vars the proxy is a pass-through, no
+    `ClerkProvider` renders, and the app behaves identically to phase 6.
+    Remaining manual step: create the Clerk app, enable the Email link factor,
+    set allowed origins, and set the two keys in Vercel (before build).
+  - **Setup completed 2026-08-22 (Clerk CLI).** `clerk` CLI 3.1.0 installed,
+    logged in, and linked to the "sga-analytics" Clerk app (development
+    instance). `clerk init` SKIPPED our custom `proxy.ts`/`layout.tsx`
+    (detected as configured) and scaffolded path-routed catch-all pages
+    `app/sign-in/[[...sign-in]]/page.tsx` + `app/sign-up/[[...sign-up]]/page.tsx`
+    (merged with our auth-off redirect + teal theme; the earlier simple
+    `app/sign-in/page.tsx` was removed to avoid a route conflict). Real dev
+    keys + sign-in/up redirect vars written to `.env` by init.
+  - **Instance config patched via `clerk config patch`:** password factor
+    disabled (`auth_password.enabled/required: false`) so email_link is the
+    ONLY factor, and `auth_attack_protection.email_link_require_same_client`
+    set to false so links open across browsers/devices. Note: Clerk's SignIn
+    rejects unknown emails ("Couldn't find your account") even with public
+    sign-ups, so the home gate mounts `<SignUp />` (identical one-field card
+    with password disabled); returning users follow its "sign in" link.
+  - **E2E verified in-browser:** gate renders, `/api/analyze` 401s signed-out,
+    sign-up sent a real magic link, the link click verified the account and
+    opened the gate (session + UserButton live). Still open for production:
+    create the Clerk **production** instance, add the deployed URL to allowed
+    origins, and set both keys in Vercel before build.
+  - **Deployed to Vercel 2026-08-22** via CLI: all six Clerk env vars pushed
+    to Production + Preview (`vercel env add`; preview needs an explicit empty
+    git-branch arg, `vercel env add NAME preview ""`), then `vercel --prod`.
+    Live at **https://sga-analytics.vercel.app** — verified: gate renders with
+    the dev publishable key, `/api/analyze` 401s signed-out, `/sign-in` and
+    `/sign-up` serve 200, Clerk accepts the vercel.app origin, and the
+    sign-in flow delivers a real magic link. NOTE: production runs the Clerk
+    **development** instance keys (pk_test — shows a "Development mode" badge,
+    Clerk-sender emails). Upgrading: create the production instance in the
+    Clerk dashboard, then swap the two key vars in Vercel and redeploy.
+    Existing-account sign-ups return 422 — expected; returning users use
+    /sign-in (the gate's SignUp card links to it).
+  - **Landing page trimmed (2026-08-22):** removed the "Website scoring" pill,
+    the three SEO/GEO/AEO info cards, and the gate's icon/H2/subtext block —
+    the copy repeated the acronyms five times. Hero is now just the H1 (the
+    subhead and gate helper line were removed in a later trim); the gate is the
+    Clerk card alone. Landing fits a single viewport
+    (800px tall, verified local + production).
+  - The Clerk card footer is decluttered via `clerkAppearance.elements.footerItem:
+    { display: "none" }` — that one element holds BOTH the "Secured by clerk"
+    branding and the orange "Development mode" badge; the sibling
+    `cl-footerAction` ("Already have an account?") link stays visible. Verified
+    live. (The badge exists because production runs dev keys; upgrading to a
+    Clerk production instance removes it at the source.)
+  - Card titles say "SGA Analytics" via `clerkLocalization` in
+    `lib/clerk-theme.ts` (the app name "sga-analytics" isn't renamable through
+    the CLI, and Clerk's Platform API isn't reachable with instance keys).
+    GOTCHAS found the hard way: (1) `localization` passed to the RSC-exported
+    `<ClerkProvider>` from a server layout is silently dropped — the provider
+    must render from a client component (`components/ClerkProviderClient.tsx`);
+    (2) `@clerk/localizations`' `enUS` is the FULL resource with dictionary
+    keys spread FLAT at the top level (no `.dictionary` wrapper), and clerk-js
+    ignores partial resources — spread `enUS` and override
+    `signIn.start.title`/`signUp.start.title` (+ `titleCombined` variants).
+    New dep: `@clerk/localizations`.
+
+## Planned — phase 7: persistence, rate limiting, and auth
+
+> **Status: Track C (auth) SHIPPED 2026-08-22 — see the auth-gate entry above
+> (implemented as a hard magic-link gate, not the optional perk originally
+> sketched). Tracks A (rate limiting) and B (persistence) remain planned.**
+> This section is the agreed next phase. It
+> turns the single-page auditor into a platform: protects paid-provider spend,
+> persists reports, and gates them behind accounts. All three additions stay
+> **env-gated with never-throw fallbacks**, exactly like the existing external
+> integrations (`aiSource`, `domainRating.source`, `psiMetrics.source`), so the
+> app keeps its zero-config ethos — nothing here is a hard dependency at runtime.
+
+Stack decision (web-research-backed, Aug 2026):
+
+- **Cache / rate-limit store → Upstash Redis.** HTTP-based REST API (works in
+  Edge middleware), free tier (10K commands/day), and it is what the deprecated
+  Vercel KV was built on. Doubles as the durable second tier `lib/cache.ts`
+  already documents as the future upgrade.
+- **Database → Neon (serverless Postgres).** Direct successor to Vercel
+  Postgres, native Vercel Marketplace integration, scale-to-zero, free tier.
+  Ideal for audit history + score-over-time trends.
+- **Auth → Clerk.** Easiest setup, free to 50K MAU, pre-built UI, native App
+  Router middleware support. (Better Auth is the self-hosted alternative if we
+  later want user data in our own Postgres; not chosen for phase 7 to keep
+  setup minimal.)
+
+Order is deliberate: **rate limiting first** (immediately protects the Ahrefs /
+CrUX / Mistral spend the pipeline makes on every `/api/analyze*` call today),
+**persistence second** (the product layer that makes people return), **auth
+last** (once there is something auth-protected worth logging in for).
+
+### Environment variables to add (`.env.example`, ALL still optional)
+
+| Variable | Purpose |
+|----------|---------|
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis. Powers the durable cache tier + rate limiting. Without them: in-memory cache + no rate limit (today's behavior). |
+| `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Neon Postgres pooled (serverless driver) + direct (migrations). Without them: reports stay ephemeral (today's behavior). |
+| `CLERK_SECRET_KEY` / `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk. Without them: the app is fully usable anonymous (today's behavior). |
+
+### Track A — rate limiting + durable cache tier (do first)
+
+1. `npm i @upstash/ratelimit @upstash/redis`. New `lib/upstash.ts` that builds
+   the `Redis` + `Ratelimit` clients **only when env vars are present**, else
+   exports `null` — mirroring the never-throw template (`psi.ts`, `domain-rating.ts`).
+2. New `middleware.ts` (Edge runtime) applying a sliding-window limit to the
+   `/api/analyze*` routes keyed by IP (pre-auth) — the real fire drill, since
+   those routes fan out to **paid** Ahrefs/CrUX/Mistral on every call with zero
+   throttling today. When Upstash is unset, middleware short-circuits to "no
+   limit" so local dev and the zero-config deployment are unaffected.
+3. Layer Upstash as an **env-gated second tier** in `lib/cache.ts`: on a miss in
+   the in-memory `Map`, check Upstash (durable, cross-instance) before running
+   the pipeline; on a write, write-through to both. The in-memory tier stays as
+   a hot L1 to avoid a Redis hop on warm-instance repeats. The
+   "skip caching when `psiMetrics === null`" rule is preserved.
+4. `X-Cache` header gains `HIT-L1`/`HIT-L2`/`MISS` values; the stream's `cached`
+   flag and the UI "Cached" pill already consume this path unchanged. The 429
+   response from rate limiting returns a clean `{ error }` the existing UI
+   error banner already renders.
+
+### Track B — persistence (Neon Postgres)
+
+1. `npm i @neondatabase/serverless` (HTTP driver — no TCP pool exhaustion on
+   serverless) + `drizzle-orm` + `drizzle-kit` for typed schema + migrations.
+   New `lib/db.ts` client (lazy, env-gated). Schema in `lib/db/schema.ts`.
+2. **Schema (minimal, v1):**
+   - `reports(id uuid pk, url text, final_url text, overall int, seo int, aeo
+     int, geo int, speed int, technical int, dr int, dr_source text,
+     analyzed_at timestamptz, owner_user_id text null, payload jsonb)`. The
+     full `AnalyzeResult` is stored as `payload jsonb` (the type already
+     serializes cleanly to JSON); the top-level score columns are denormalized
+     for cheap trend queries without a jsonb probe.
+   - Index on `(url, analyzed_at desc)` for history; index on
+     `owner_user_id` for "my reports" once Track C lands.
+3. **Persistence is a side effect, never on the critical path:** after
+   `analyzeUrl` resolves, `analyzeUrlCached` fires-and-forgets a
+   `persistReport(result)` write wrapped in try/catch (never throws up to the
+   route handler — same rule as every other external call). The report is still
+   returned from the in-memory/Upstash cache as today.
+4. New `app/report/[id]/route.ts` → renders a stored report (read from Postgres
+   by id). This unlocks **shareable report URLs** — the highest organic-growth
+   lever — without changing the live-audit flow. Public by default in v1;
+   owner-gating comes with Track C.
+5. When `DATABASE_URL` is unset, persistence and `/report/[id]` are skipped
+   entirely (the live-audit UX is unchanged) — preserves zero-config.
+
+### Track C — auth (Clerk, do last)
+
+1. `npm i @clerk/nextjs`. Env-gated: when `CLERK_SECRET_KEY` is unset, Clerk
+   middleware is a no-op and the app is fully usable anonymous.
+2. Wire `clerkMiddleware()` into the existing `middleware.ts` from Track A
+   (compose: rate-limit first, then auth). Add `/sign-in` and `/sign-up` routes
+   via Clerk's App Router helpers; surface a "Sign in" control in `AnalyzerApp`'s
+   nav (next to the existing "Free URL audit" pill).
+3. **Owner-scoped reports:** on the persist write (Track B), set
+   `owner_user_id` from `auth()` when authenticated. "My reports" /
+   score-over-time views are gated behind `auth().userId`; the public
+   `/report/[id]` stays open (v1 decision — shareability > exclusivity).
+4. **Rate-limit tiering (optional, if time allows):** when authenticated, key
+   the Upstash limiter on `userId` with a higher budget than the anonymous
+   IP-keyed limit. Anonymous-first access is preserved — auth is a perk, not a
+   gate, matching the product's "free URL audit" positioning.
+
+### Non-goals (explicitly out of scope for phase 7)
+
+- The **in-house Domain Rating** and **in-house Speed runner** remain the
+  separate, separately-validated roadmap items already documented above. Phase
+  7 neither starts nor blocks them.
+- No billing, no orgs/teams, no scheduled re-audit cron yet — those are natural
+  phase-8 follow-ons once persistence + auth are live.
+
+### Acceptance criteria
+
+- `tsc`, `eslint`, `next build` all pass.
+- **Zero-config path unchanged:** with none of the new env vars set, a live
+  `/api/analyze` returns identical results to phase 6 (in-memory cache, no rate
+  limit, no persistence, no auth), and no new runtime errors surface.
+- With Upstash env vars set: repeat analysis of a URL within the TTL is served
+  from the durable tier across cold starts; hammering `/api/analyze` from one
+  IP returns HTTP 429 past the limit.
+- With `DATABASE_URL` set: a fresh analysis is persisted and re-fetchable at
+  `/report/<id>`; the live audit response latency is unchanged (persistence is
+  async fire-and-forget).
+- With Clerk env vars set: sign-in/sign-up work, "My reports" shows the
+  authenticated user's persisted reports, and anonymous audits still work end
+  to end.
+- All three additions degrade cleanly to today's behavior when their env vars
+  are absent (verified by running the build + a local audit with each tier
+  individually disabled).
   - Verified: `tsc`, `eslint`, and `next build` all pass; both route handlers
     compile as dynamic (`ƒ`) functions.
