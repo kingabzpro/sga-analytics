@@ -1,6 +1,7 @@
 import { analyzeUrlCached, cacheKey } from "@/lib/cache";
 import { NextResponse } from "next/server";
 import { applyAuditQuotaHeaders, reserveAudit } from "@/lib/audit-quota";
+import { createReportShareProof } from "@/lib/report-share-proof";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -45,7 +46,14 @@ export async function POST(request: Request) {
           send({ type: "progress", ...event });
         },
       })
-        .then(({ result, cached }) => send({ type: "result", result, cached }))
+        .then(({ result, cached }) =>
+          send({
+            type: "result",
+            result,
+            cached,
+            shareProof: createReportShareProof(result),
+          })
+        )
         .catch((error: unknown) => {
           send({
             type: "error",

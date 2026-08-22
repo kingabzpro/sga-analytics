@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { analyzeUrlCached, cacheKey } from "@/lib/cache";
 import { applyAuditQuotaHeaders, reserveAudit } from "@/lib/audit-quota";
+import { createReportShareProof } from "@/lib/report-share-proof";
 
 export const runtime = "nodejs";
 export const maxDuration = 30; // bounded external calls + transparent UI progress
@@ -26,8 +27,12 @@ export async function POST(request: Request) {
     }
 
     const { result, cached } = await analyzeUrlCached(url);
+    const proof = createReportShareProof(result);
     const response = NextResponse.json(result, {
-      headers: { "X-Cache": cached ? "HIT" : "MISS" },
+      headers: {
+        "X-Cache": cached ? "HIT" : "MISS",
+        ...(proof ? { "X-Report-Share-Proof": proof } : {}),
+      },
     });
     applyAuditQuotaHeaders(response, allowance, request);
     return response;

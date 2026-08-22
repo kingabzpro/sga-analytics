@@ -27,7 +27,7 @@ estimate. Everything works with **zero env config** via graceful fallbacks.
 
 ## Stack
 
-- **Next.js 16.2.10** (App Router, Turbopack), **React 19.2.4**, **Tailwind v4**.
+- **Next.js 16.2.12** (App Router, Turbopack), **React 19.2.4**, **Tailwind v4**.
 - **React Compiler** is ON (`next.config.ts` `reactCompiler: true` + babel plugin)
   — write idiomatic React; avoid manual memo where the compiler can handle it,
   but verify with `npm run build`.
@@ -42,6 +42,8 @@ app/
                          Reserves an env-gated audit allowance before provider work.
   api/analyze/stream/    NDJSON progress stream variant of the same (cached; tags the result event with `cached`).
   api/quota/             GET the current anonymous/member free-audit allowance.
+  api/reports/           POST a signed AnalyzeResult -> durable 24-hour share.
+  report/[id]/           public expiring report page; `/html` downloads a self-contained report.
   sign-in/page.tsx       Clerk <SignIn/> page (redirects away when auth is off).
   layout.tsx, page.tsx   root layout (conditional <ClerkProvider>); home renders <AnalyzerApp authEnabled>.
   globals.css            teal/cyan design system + a few CSS keyframes.
@@ -51,6 +53,9 @@ components/
   AnalyzerApp.tsx        client component: URL form, fetch to /api/analyze/stream, results layout.
                          Restores the pre-auth landing composition; Clerk opens as a unified
                          sign-in-or-up modal (`withSignUp`) from the nav or after audit one.
+  ReportView.tsx         shared live/public report composition and page-signals snapshot.
+  ShareReportButton.tsx  creates a 24-hour link, copies it, and opens the public report.
+  SharedReportActions.tsx  copy-link + Save as HTML controls on public reports.
   CitabilityCard.tsx     phase-4 flagship: "would ChatGPT cite this?" verdict card (Mistral + rule fallback).
   ScoreCards.tsx         animated SVG ring gauges (Overall + 5 categories) + Domain Rating hero + tabbed checks.
   Recommendations.tsx    AI/rule tips bucketed by category (SEO/AEO/GEO/SPD/TECH/DR).
@@ -63,6 +68,7 @@ emails/
 scripts/
   sync-clerk-email-template.mjs  Pushes all branded templates to the Clerk instance
                          selected by CLERK_SECRET_KEY (`npm run email:sync`).
+  setup-shared-reports.mjs  idempotent Neon table/index setup (`npm run db:setup:reports`).
 lib/
   analyze.ts             ORCHESTRATION. fetch -> extract -> score (seo/aeo/geo) ->
                          parallel (PSI, domain rating, broken-links HEAD probe) ->
@@ -93,6 +99,9 @@ lib/
                          key only, since NEXT_PUBLIC vars are build-time inlined).
   audit-quota.ts         One signed-cookie anonymous audit + five Clerk-metadata member
                          audits; fail-closed when Clerk is partially configured.
+  report-share-proof.ts  short-lived HMAC proof that only genuine analyzer results can be stored.
+  shared-reports.ts      Neon HTTP persistence, opaque deterministic IDs, exact 24-hour expiry.
+  report-html.ts         escaped, self-contained offline HTML report renderer.
   clerk-theme.ts         Clerk appearance prop matching the teal design system.
 ```
 
@@ -131,6 +140,8 @@ lib/
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | Clerk email magic-link login gate. With BOTH set, visitors must sign in before auditing (UI gate + server-side 401 on `/api/analyze*`); without them the app is fully open. `NEXT_PUBLIC_*` is inlined at build time — set before deploy. Optional `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` avoids a Clerk Next 16 proxy redirect bug. The magic-link factor itself is enabled in the Clerk Dashboard (Email → "Email verification link"). |
 | `OPEN_PAGE_RANK_API_KEY` | Open PageRank key (`opr_live_...`) for an authoritative Domain Rating (heuristic estimate otherwise) |
 | `PAGESPEED_API_KEY` | Google PageSpeed Insights v5 key for real Core Web Vitals — LCP/INP/CLS/FCP/TBT/TTFB — feeding the Speed score (on-page heuristics otherwise) |
+| `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Neon Postgres for durable 24-hour shared reports. Without it, report creation returns a clean unavailable response. |
+| `REPORT_SHARE_SECRET` | Optional HMAC secret for share proofs when Clerk is disabled; Clerk's server secret is reused when configured. |
 | `HF_TOKEN` / `FIREWORKS_API_KEY` | Legacy — no longer used since the switch to Mistral; kept for reference |
 
 Never commit real secrets. Only `.env.example` is tracked.
@@ -456,6 +467,29 @@ third-party scoring APIs:
   remain available. Google email subaddresses are blocked on this connection as
   recommended by Clerk. Verified through the public Frontend API environment:
   `oauth_google` is present in identification strategies and first factors.
+
+- **2026-08-23 (24-hour shared reports + HTML export)** — Completed audits can
+  now be turned into public, unguessable links that preserve the exact result
+  for 24 hours; public report pages include Copy link and Save as HTML actions.
+  - Connected the existing unused free `neon-amber-jacket` Neon Marketplace
+    resource to the Vercel project (Production/Preview/Development) and created
+    `shared_reports` with an expiry index. The runtime uses Neon's GA HTTP
+    driver (`@neondatabase/serverless`) for serverless-safe one-shot queries.
+  - Analyze responses carry a short-lived HMAC proof. `/api/reports` validates
+    the result shape, 512 KB body cap, and proof before writing; proofs map to a
+    deterministic 22-character opaque ID so replaying one valid request cannot
+    spam duplicate rows. Anonymous and signed-in audits can both be shared.
+  - Expiration is enforced from `expires_at` on every page/download read (not
+    merely by a cleanup job); expired HTML requests return HTTP 410. Old rows
+    are cleaned opportunistically. Shared pages are `noindex,nofollow`.
+  - `/report/[id]/html` returns an escaped, self-contained HTML document with
+    all seven headline metrics, every category check, citability, recommendations,
+    and page signals. It downloads with a hostname-based filename and a locked
+    Content Security Policy; the saved file remains useful offline after the
+    temporary web link expires.
+  - Verified: schema setup, ESLint, TypeScript, Next production build, live local
+    analyze-stream → share → repeat-share (same ID) → public page → HTML download;
+    forged proof returns 403 and an expired fixture returns 410.
 
 ## Planned — phase 7: persistence, rate limiting, and auth
 

@@ -7,12 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "email:sync": "node --env-file=.env scripts/sync-clerk-email-template.mjs"
+    "email:sync": "node --env-file=.env scripts/sync-clerk-email-template.mjs",
+    "db:setup:reports": "node --env-file=.env.vercel.local scripts/setup-shared-reports.mjs"
   },
   "dependencies": {
     "@clerk/localizations": "^4.15.5",
     "@clerk/nextjs": "^7.8.0",
     "@mistralai/mistralai": "^2.5.0",
+    "@neondatabase/serverless": "^1.1.0",
     "cheerio": "^1.2.0",
     "motion": "^12.43.0",
     "next": "16.2.12",
