@@ -447,6 +447,16 @@ third-party scoring APIs:
     upgrade; Clerk's default production email still removes the forced
     `[Development]` subject prefix.
 
+- **2026-08-23 (Google sign-in)** — Enabled Clerk's built-in Google social
+  connection on the development instance used by `sga-analytics.vercel.app`.
+  Clerk supplies shared OAuth credentials and redirect URIs in development, so
+  no Google Cloud credentials or code changes are needed. The existing
+  `openSignIn()` modal and hosted sign-in/sign-up pages discover the connection
+  from Clerk and render "Continue with Google" automatically; email magic links
+  remain available. Google email subaddresses are blocked on this connection as
+  recommended by Clerk. Verified through the public Frontend API environment:
+  `oauth_google` is present in identification strategies and first factors.
+
 ## Planned — phase 7: persistence, rate limiting, and auth
 
 > **Status: Track C (auth) SHIPPED 2026-08-22 — see the auth-gate entry above
