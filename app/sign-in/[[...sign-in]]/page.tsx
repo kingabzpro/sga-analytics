@@ -13,7 +13,11 @@ export default function SignInPage() {
 
   return (
     <main className="app-shell flex flex-1 items-center justify-center px-4 py-12">
-      <SignIn fallbackRedirectUrl="/" appearance={clerkAppearance} />
+      <SignIn
+        fallbackRedirectUrl="/"
+        appearance={clerkAppearance}
+        withSignUp
+      />
     </main>
   );
 }

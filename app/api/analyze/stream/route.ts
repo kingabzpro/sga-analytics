@@ -1,17 +1,33 @@
-import { analyzeUrlCached } from "@/lib/cache";
-import { requireSignIn } from "@/lib/auth";
+import { analyzeUrlCached, cacheKey } from "@/lib/cache";
+import { NextResponse } from "next/server";
+import { applyAuditQuotaHeaders, reserveAudit } from "@/lib/audit-quota";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  const denied = await requireSignIn();
-  if (denied) return denied;
-
   const body = await request.json().catch(() => null);
   const url = typeof body?.url === "string" ? body.url : "";
   if (!url.trim()) {
     return Response.json({ error: "URL is required" }, { status: 400 });
+  }
+
+  try {
+    // Validate before consuming a scarce audit allowance.
+    cacheKey(url);
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Invalid URL" },
+      { status: 400 }
+    );
+  }
+
+  const allowance = await reserveAudit(request);
+  if (!allowance.allowed) {
+    return NextResponse.json(
+      { error: allowance.error, code: allowance.code },
+      { status: allowance.code === "SIGN_IN_REQUIRED" ? 401 : allowance.code === "QUOTA_EXHAUSTED" ? 429 : 503 }
+    );
   }
 
   const encoder = new TextEncoder();
@@ -40,11 +56,13 @@ export async function POST(request: Request) {
     },
   });
 
-  return new Response(stream, {
+  const response = new NextResponse(stream, {
     headers: {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     },
   });
+  applyAuditQuotaHeaders(response, allowance, request);
+  return response;
 }

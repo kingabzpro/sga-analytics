@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
-import { analyzeUrlCached } from "@/lib/cache";
-import { requireSignIn } from "@/lib/auth";
+import { analyzeUrlCached, cacheKey } from "@/lib/cache";
+import { applyAuditQuotaHeaders, reserveAudit } from "@/lib/audit-quota";
 
 export const runtime = "nodejs";
 export const maxDuration = 30; // bounded external calls + transparent UI progress
 
 export async function POST(request: Request) {
-  // Outside the try so a 401/503 is never remapped to a 400/502 by the catch.
-  const denied = await requireSignIn();
-  if (denied) return denied;
-
   try {
     const body = await request.json().catch(() => null);
     const url = typeof body?.url === "string" ? body.url : "";
@@ -18,10 +14,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
+    // Validate before consuming a scarce audit allowance.
+    cacheKey(url);
+
+    const allowance = await reserveAudit(request);
+    if (!allowance.allowed) {
+      return NextResponse.json(
+        { error: allowance.error, code: allowance.code },
+        { status: allowance.code === "SIGN_IN_REQUIRED" ? 401 : allowance.code === "QUOTA_EXHAUSTED" ? 429 : 503 }
+      );
+    }
+
     const { result, cached } = await analyzeUrlCached(url);
-    return NextResponse.json(result, {
+    const response = NextResponse.json(result, {
       headers: { "X-Cache": cached ? "HIT" : "MISS" },
     });
+    applyAuditQuotaHeaders(response, allowance, request);
+    return response;
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to analyze website";

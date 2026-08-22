@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
+import { Show, UserButton, useAuth, useClerk } from "@clerk/nextjs";
 import type { AnalyzeResult, PsiMetrics } from "@/lib/types";
+import type { AuditQuotaStatus } from "@/lib/audit-quota";
 import { Logo } from "./Logo";
 import { ScoreCards } from "./ScoreCards";
 import { Recommendations } from "./Recommendations";
 import { CitabilityCard } from "./CitabilityCard";
-import { EmailGate } from "./EmailGate";
-import { UserButton } from "@clerk/nextjs";
 import { clerkAppearance } from "@/lib/clerk-theme";
 
 type ProgressEntry = {
@@ -53,7 +53,44 @@ function CwvRow({ psi }: { psi: PsiMetrics }) {
   );
 }
 
+async function fetchAuditQuota(): Promise<AuditQuotaStatus | null> {
+  const response = await fetch("/api/quota", { cache: "no-store" });
+  if (!response.ok) return null;
+  return response.json() as Promise<AuditQuotaStatus>;
+}
+
+function ClerkAnalyzerApp() {
+  const clerk = useClerk();
+  const { userId } = useAuth();
+
+  return (
+    <AnalyzerExperience
+      authEnabled
+      authSessionKey={userId ?? "signed-out"}
+      onRequestSignIn={() =>
+        clerk.openSignIn({
+          appearance: clerkAppearance,
+          fallbackRedirectUrl: "/",
+          withSignUp: true,
+        })
+      }
+    />
+  );
+}
+
 export function AnalyzerApp({ authEnabled = false }: { authEnabled?: boolean }) {
+  return authEnabled ? <ClerkAnalyzerApp /> : <AnalyzerExperience />;
+}
+
+function AnalyzerExperience({
+  authEnabled = false,
+  authSessionKey = "disabled",
+  onRequestSignIn,
+}: {
+  authEnabled?: boolean;
+  authSessionKey?: string;
+  onRequestSignIn?: () => void;
+}) {
   const [url, setUrl] = useState("https://example.com");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +98,18 @@ export function AnalyzerApp({ authEnabled = false }: { authEnabled?: boolean }) 
   const [cached, setCached] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [progressEntries, setProgressEntries] = useState<ProgressEntry[]>([]);
+  const [quota, setQuota] = useState<AuditQuotaStatus | null>(null);
+
+  useEffect(() => {
+    if (!authEnabled) return;
+    let active = true;
+    void fetchAuditQuota().then((nextQuota) => {
+      if (active) setQuota(nextQuota);
+    });
+    return () => {
+      active = false;
+    };
+  }, [authEnabled, authSessionKey]);
 
   useEffect(() => {
     if (!loading) return;
@@ -73,6 +122,16 @@ export function AnalyzerApp({ authEnabled = false }: { authEnabled?: boolean }) 
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (quota?.remaining === 0) {
+      if (!quota.authenticated && onRequestSignIn) {
+        onRequestSignIn();
+      } else {
+        setError("You have used all 5 free member audits.");
+      }
+      return;
+    }
+
     setElapsedSeconds(0);
     setLoading(true);
     setError(null);
@@ -87,7 +146,15 @@ export function AnalyzerApp({ authEnabled = false }: { authEnabled?: boolean }) 
         body: JSON.stringify({ url }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+          code?: string;
+        } | null;
+        if (data?.code === "SIGN_IN_REQUIRED" && onRequestSignIn) {
+          setError(null);
+          onRequestSignIn();
+          return;
+        }
         throw new Error(data?.error || "Analysis failed");
       }
       if (!res.body) throw new Error("Progress stream unavailable");
@@ -135,6 +202,10 @@ export function AnalyzerApp({ authEnabled = false }: { authEnabled?: boolean }) 
 
       if (!finalResult) throw new Error("Analysis finished without a report");
       setResult(finalResult);
+      if (authEnabled) {
+        const nextQuota = await fetchAuditQuota();
+        if (nextQuota) setQuota(nextQuota);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -376,10 +447,28 @@ export function AnalyzerApp({ authEnabled = false }: { authEnabled?: boolean }) 
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:py-14">
-      <nav className="mb-8 flex items-center justify-between gap-4">
+      <nav className="mb-10 flex items-center justify-between gap-4">
         <Logo size="md" />
         {authEnabled ? (
-          <UserButton appearance={clerkAppearance} />
+          <div className="flex items-center gap-3">
+            <Show when="signed-out">
+              <button
+                type="button"
+                onClick={onRequestSignIn}
+                className="rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-teal-700 shadow-sm ring-1 ring-teal-200 transition hover:bg-teal-50"
+              >
+                Sign in
+              </button>
+            </Show>
+            <Show when="signed-in">
+              {quota?.remaining != null ? (
+                <span className="hidden rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-teal-100 sm:inline-flex">
+                  {quota.remaining} free {quota.remaining === 1 ? "audit" : "audits"} left
+                </span>
+              ) : null}
+              <UserButton appearance={clerkAppearance} />
+            </Show>
+          </div>
         ) : (
           <div className="hidden items-center gap-2 sm:flex">
             <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-teal-100">
@@ -389,14 +478,65 @@ export function AnalyzerApp({ authEnabled = false }: { authEnabled?: boolean }) 
         )}
       </nav>
 
-      <header className="mx-auto mb-8 max-w-3xl text-center">
+      <header className="mx-auto mb-10 max-w-3xl text-center">
+        <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800 ring-1 ring-teal-100">
+          <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+          Website scoring
+        </p>
         <h1 className="font-display text-4xl font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
           Score any site for{" "}
           <span className="text-brand-gradient">SEO, GEO &amp; AEO</span>
         </h1>
+        <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-600 sm:text-base">
+          Paste a URL to audit on-page SEO, generative-engine, and answer-engine
+          signals — plus practical ways to improve.
+        </p>
       </header>
 
-      {authEnabled ? <EmailGate>{analyzerBody}</EmailGate> : analyzerBody}
+      {analyzerBody}
+
+      {authEnabled && quota && !result && !loading ? (
+        <p className="-mt-5 mb-8 text-center text-xs text-slate-500">
+          {quota.authenticated
+            ? `${quota.remaining} of 5 member audits remaining`
+            : quota.remaining === 1
+              ? "Your first audit is free — no account needed"
+              : "Free audit used — sign in to unlock 5 more"}
+        </p>
+      ) : null}
+
+      {!result && !loading && !error ? (
+        <div className="mx-auto mb-4 grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            {
+              title: "SEO",
+              body: "Titles, meta, structure, and content signals search engines rely on.",
+              tone: "text-teal-700 bg-teal-50 ring-teal-100",
+            },
+            {
+              title: "GEO",
+              body: "Structured data, AI crawl access, and trust signals for generative engines.",
+              tone: "text-emerald-700 bg-emerald-50 ring-emerald-100",
+            },
+            {
+              title: "AEO",
+              body: "Answer-ready pages with clear Q&A patterns and snippet-friendly layout.",
+              tone: "text-cyan-700 bg-cyan-50 ring-cyan-100",
+            },
+          ].map((item) => (
+            <div key={item.title} className="glass-panel rounded-2xl px-4 py-4 text-left">
+              <div
+                className={`inline-flex rounded-md px-2 py-0.5 font-mono-nums text-[11px] font-semibold uppercase tracking-[0.16em] ring-1 ${item.tone}`}
+              >
+                {item.title}
+              </div>
+              <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
+                {item.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <footer className="mt-14 border-t border-slate-200/70 pt-5 text-center text-[11px] tracking-wide text-slate-400">
         <span>© 2026 SGA Analytics · Built with love by </span>

@@ -40,16 +40,16 @@ export const clerkLocalization = {
     ...enUS.signIn!,
     start: {
       ...enUS.signIn!.start,
-      title: "Sign in to SGA Analytics",
-      titleCombined: "Sign in to SGA Analytics",
+      title: "Continue to SGA Analytics",
+      titleCombined: "Continue to SGA Analytics",
     },
   },
   signUp: {
     ...enUS.signUp!,
     start: {
       ...enUS.signUp!.start,
-      title: "Create your SGA Analytics account",
-      titleCombined: "Create your SGA Analytics account",
+      title: "Continue to SGA Analytics",
+      titleCombined: "Continue to SGA Analytics",
     },
   },
 } as unknown as ClerkLocalization;

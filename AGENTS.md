@@ -39,8 +39,9 @@ estimate. Everything works with **zero env config** via graceful fallbacks.
 ```
 app/
   api/analyze/route.ts   POST { url } -> AnalyzeResult (cached 10 min, X-Cache header). runtime="nodejs", maxDuration=30.
-                         Env-gated Clerk check (requireSignIn) before anything else.
+                         Reserves an env-gated audit allowance before provider work.
   api/analyze/stream/    NDJSON progress stream variant of the same (cached; tags the result event with `cached`).
+  api/quota/             GET the current anonymous/member free-audit allowance.
   sign-in/page.tsx       Clerk <SignIn/> page (redirects away when auth is off).
   layout.tsx, page.tsx   root layout (conditional <ClerkProvider>); home renders <AnalyzerApp authEnabled>.
   globals.css            teal/cyan design system + a few CSS keyframes.
@@ -48,10 +49,8 @@ proxy.ts                 Next 16 renamed middleware->proxy. clerkMiddleware() on
                          Clerk keys are set; otherwise a pass-through (zero-config, no keyless dev mode).
 components/
   AnalyzerApp.tsx        client component: URL form, fetch to /api/analyze/stream, results layout.
-                         With authEnabled, the form/progress/results block is wrapped in <EmailGate/>.
-  EmailGate.tsx          Clerk magic-link gate: <Show when="signed-out"> shows the themed <SignIn/>;
-                         <Show when="signed-in"> renders children. NOTE: Clerk Core 3 (v7) REMOVED
-                         <SignedIn>/<SignedOut> (throw at runtime) — always use <Show>.
+                         Restores the pre-auth landing composition; Clerk opens as a unified
+                         sign-in-or-up modal (`withSignUp`) from the nav or after audit one.
   CitabilityCard.tsx     phase-4 flagship: "would ChatGPT cite this?" verdict card (Mistral + rule fallback).
   ScoreCards.tsx         animated SVG ring gauges (Overall + 5 categories) + Domain Rating hero + tabbed checks.
   Recommendations.tsx    AI/rule tips bucketed by category (SEO/AEO/GEO/SPD/TECH/DR).
@@ -83,9 +82,10 @@ lib/
                          readability/definition + image-dimension counts).
   types.ts               CheckResult, CategoryScore, PageSignals, DomainRating, PsiMetrics,
                          BrokenLink, CitabilityProbe, AnalyzeResult.
-  auth.ts                Clerk env-gating: isClerkConfigured() (publishable key only —
-                         render-side, since NEXT_PUBLIC vars are build-time inlined) and
-                         requireSignIn() (runtime both-keys check, fail-closed 401, never throws).
+  auth.ts                Clerk render-side env-gating via isClerkConfigured() (publishable
+                         key only, since NEXT_PUBLIC vars are build-time inlined).
+  audit-quota.ts         One signed-cookie anonymous audit + five Clerk-metadata member
+                         audits; fail-closed when Clerk is partially configured.
   clerk-theme.ts         Clerk appearance prop matching the teal design system.
 ```
 
@@ -397,6 +397,24 @@ third-party scoring APIs:
     ignores partial resources — spread `enUS` and override
     `signIn.start.title`/`signUp.start.title` (+ `titleCombined` variants).
     New dep: `@clerk/localizations`.
+
+- **2026-08-22 (anonymous-first auth + quotas)** — Restored the landing page
+  composition from `61a17a8` (Website scoring pill, hero subhead, audit form,
+  SEO/GEO/AEO explainer cards) while keeping all later report features.
+  - Replaced the hard full-page Clerk gate with a top-right **Sign in** control
+    and Clerk's in-page `<SignIn withSignUp>` modal. The one email flow signs in
+    existing users or transfers new emails to sign-up; both states use the
+    neutral "Continue to SGA Analytics" title.
+  - Added server-enforced free allowances: **1 anonymous audit** recorded in a
+    signed HttpOnly cookie, then **5 member audits** stored in Clerk private
+    metadata. `/api/quota` exposes only counts/status; both analyze routes
+    reserve quota before provider work and return structured 401/429 errors.
+    Invalid/private URLs are rejected before consuming an allowance.
+  - The UI shows remaining audits, opens the modal automatically on the second
+    anonymous attempt, and preserves the zero-config behavior when Clerk is off.
+  - Verified: `tsc`, `eslint`, `next build`; local HTTP flow confirms 1 → 0,
+    invalid URLs do not consume quota, and audit two returns
+    `401 SIGN_IN_REQUIRED` without entering the analysis pipeline.
 
 ## Planned — phase 7: persistence, rate limiting, and auth
 
