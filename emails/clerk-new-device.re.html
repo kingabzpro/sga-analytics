@@ -1,0 +1,62 @@
+<re-html>
+  <re-head>
+    <re-title>New sign-in to SGA Analytics</re-title>
+  </re-head>
+  <re-body background-color="#f0fdfa" padding="48px 20px 48px 20px">
+    <re-preheader>A new device accessed your SGA Analytics account.</re-preheader>
+
+    <re-header padding="0px 24px 20px 24px">
+      <re-text margin="0px" font-size="20px" font-weight="bold" line-height="28px" color="#0f766e">
+        SGA Analytics
+      </re-text>
+      <re-text margin="3px 0px 0px 0px" font-size="10px" font-weight="bold" line-height="16px" color="#64748b">
+        WEBSITE INTELLIGENCE
+      </re-text>
+    </re-header>
+
+    <re-main background-color="#ffffff" border-radius="18px">
+      <re-block align="left" padding="38px 32px 34px 32px" background-color="#ffffff" border-radius="18px">
+        <re-text margin="0px 0px 12px 0px" font-size="11px" font-weight="bold" line-height="18px" color="#d97706">
+          SECURITY NOTICE
+        </re-text>
+        <re-heading margin="0px" level="h1" align="left" color="#0f172a" font-size="28px" line-height="36px">
+          New sign-in detected
+        </re-heading>
+        <re-text margin="16px 0px 0px 0px" align="left" font-size="15px" line-height="24px" color="#475569">
+          If you recognize the details below, you're all set. Otherwise, secure your account now.
+        </re-text>
+
+        <re-block margin="24px 0px 0px 0px" padding="18px 20px" background-color="#f8fafc" border-radius="12px">
+          <re-text margin="0px" font-size="13px" line-height="21px" color="#334155">
+            <b>Device</b> · {{device_type}}, {{browser_name}} on {{operating_system}}<br />
+            <b>Location</b> · {{location}}<br />
+            <b>IP address</b> · {{ip_address}}<br />
+            <b>Time</b> · {{session_created_at}}
+          </re-text>
+        </re-block>
+
+        <re-button
+          href="{{revoke_session_url}}"
+          font-size="14px"
+          font-weight="bold"
+          border-radius="10px"
+          padding="12px 22px"
+          margin="28px 0px 0px 0px"
+          background-color="#0f172a"
+          color="#ffffff"
+        >
+          Secure my account
+        </re-button>
+      </re-block>
+    </re-main>
+
+    <re-footer padding="22px 24px 0px 24px">
+      <re-text margin="0px" font-size="11px" font-weight="bold" line-height="18px" color="#0f766e">
+        SEO · AEO · GEO · SPEED · TECHNICAL
+      </re-text>
+      <re-text margin="4px 0px 0px 0px" font-size="11px" line-height="18px" color="#94a3b8">
+        &copy; {{current_year}} SGA Analytics
+      </re-text>
+    </re-footer>
+  </re-body>
+</re-html>

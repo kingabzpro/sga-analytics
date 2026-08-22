@@ -1,0 +1,66 @@
+<re-html>
+  <re-head>
+    <re-title>Your SGA Analytics access link</re-title>
+  </re-head>
+  <re-body background-color="#f0fdfa" padding="48px 20px 48px 20px">
+    <re-preheader>One click to continue your website audit.</re-preheader>
+
+    <re-header padding="0px 24px 20px 24px">
+      <re-text margin="0px" font-size="20px" font-weight="bold" line-height="28px" color="#0f766e">
+        SGA Analytics
+      </re-text>
+      <re-text margin="3px 0px 0px 0px" font-size="10px" font-weight="bold" line-height="16px" color="#64748b">
+        WEBSITE INTELLIGENCE
+      </re-text>
+    </re-header>
+
+    <re-main background-color="#ffffff" border-radius="18px">
+      <re-block
+        align="left"
+        padding="38px 32px 34px 32px"
+        background-color="#ffffff"
+        border-radius="18px"
+      >
+        <re-text margin="0px 0px 12px 0px" font-size="11px" font-weight="bold" line-height="18px" color="#0d9488">
+          SECURE ACCESS
+        </re-text>
+        <re-heading margin="0px" level="h1" align="left" color="#0f172a" font-size="28px" line-height="36px">
+          Continue your website audit
+        </re-heading>
+        <re-text margin="16px 0px 0px 0px" align="left" font-size="15px" line-height="24px" color="#475569">
+          Use this private link to continue. It expires in {{ttl_minutes}} minutes.
+        </re-text>
+        <re-button
+          href="{{magic_link}}"
+          font-size="14px"
+          font-weight="bold"
+          border-radius="10px"
+          padding="12px 22px"
+          margin="28px 0px 0px 0px"
+          background-color="#0d9488"
+          color="#ffffff"
+        >
+          Continue to SGA Analytics
+        </re-button>
+
+        <re-divider margin="32px 0px 22px 0px" background-color="#ccfbf1" height="1px"></re-divider>
+
+        <re-text margin="0px" font-size="12px" line-height="19px" color="#64748b">
+          Button not working? <a href="{{magic_link}}" style="color: #0f766e; text-decoration: underline;">Open the secure link</a>.
+        </re-text>
+        <re-text margin="16px 0px 0px 0px" font-size="11px" line-height="18px" color="#94a3b8">
+          Requested from {{requested_from}} at {{requested_at}}. If this wasn't you, no action is needed.
+        </re-text>
+      </re-block>
+    </re-main>
+
+    <re-footer padding="22px 24px 0px 24px">
+      <re-text margin="0px" font-size="11px" font-weight="bold" line-height="18px" color="#0f766e">
+        SEO · AEO · GEO · SPEED · TECHNICAL
+      </re-text>
+      <re-text margin="4px 0px 0px 0px" font-size="11px" line-height="18px" color="#94a3b8">
+        &copy; {{current_year}} SGA Analytics
+      </re-text>
+    </re-footer>
+  </re-body>
+</re-html>

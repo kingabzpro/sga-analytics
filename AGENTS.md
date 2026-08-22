@@ -56,6 +56,13 @@ components/
   Recommendations.tsx    AI/rule tips bucketed by category (SEO/AEO/GEO/SPD/TECH/DR).
   motion-helpers.tsx     shared CountUp, AnimatedRing, entrance/stagger variants.
   Logo.tsx
+emails/
+  clerk-magic-link.*     Source-of-truth Clerk editor markup + email-safe HTML for
+                         the shared sign-in/sign-up magic-link message.
+  clerk-new-device.*     Matching branded security-notification templates.
+scripts/
+  sync-clerk-email-template.mjs  Pushes all branded templates to the Clerk instance
+                         selected by CLERK_SECRET_KEY (`npm run email:sync`).
 lib/
   analyze.ts             ORCHESTRATION. fetch -> extract -> score (seo/aeo/geo) ->
                          parallel (PSI, domain rating, broken-links HEAD probe) ->
@@ -415,6 +422,30 @@ third-party scoring APIs:
   - Verified: `tsc`, `eslint`, `next build`; local HTTP flow confirms 1 → 0,
     invalid URLs do not consume quota, and audit two returns
     `401 SIGN_IN_REQUIRED` without entering the analysis pipeline.
+
+- **2026-08-22 (branded Clerk emails)** — Replaced Clerk's repetitive generic
+  magic-link emails with one concise SGA Analytics message for both sign-in and
+  sign-up, plus a matching new-device security notice.
+  - Email-safe table HTML and Clerk Revolvapp editor markup live in `emails/`;
+    `npm run email:sync` publishes both variants through the Clerk Backend API.
+  - Subjects are now "Your SGA Analytics access link" and "New sign-in to SGA
+    Analytics"; From local-part is `notifications`; body styling mirrors the
+    site's teal visual system and uses one primary action.
+  - Synced and read-back verified on the development instance. Clerk's forced
+    `[Development]` prefix / `accounts.dev` sender remain while the public app
+    uses `sga-analytics.vercel.app`: Clerk explicitly does not allow production
+    keys on a `*.vercel.app` domain because its DNS records cannot be added.
+  - A production Clerk instance has been created and configured for
+    `sga.abid.work` (email-link only, password disabled, cross-device links
+    allowed), and the subdomain is attached to the Vercel project. Cutover is
+    intentionally pending the six Namecheap DNS records (one Vercel app record
+    plus five Clerk CNAMEs); deploying the live keys before DNS resolves would
+    break authentication. Vercel Production therefore remains on the working
+    development keys.
+  - The current Clerk plan rejects custom production email templates as a paid
+    feature. The checked-in branded sources remain ready to sync after an
+    upgrade; Clerk's default production email still removes the forced
+    `[Development]` subject prefix.
 
 ## Planned — phase 7: persistence, rate limiting, and auth
 

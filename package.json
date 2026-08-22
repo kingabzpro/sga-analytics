@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "email:sync": "node --env-file=.env scripts/sync-clerk-email-template.mjs"
   },
   "dependencies": {
     "@clerk/localizations": "^4.15.5",
