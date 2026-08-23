@@ -101,7 +101,8 @@ lib/
   auth.ts                Clerk render-side env-gating via isClerkConfigured() (publishable
                          key only, since NEXT_PUBLIC vars are build-time inlined).
   audit-quota.ts         One signed-cookie anonymous audit + five Clerk-metadata member
-                         audits; fail-closed when Clerk is partially configured.
+                         audits by default; optional per-user Clerk metadata limits;
+                         fail-closed when Clerk is partially configured.
   audit-history.ts       owner-scoped Neon audit snapshots (30-day TTL, 20-entry cap).
   report-comparison.ts   pure before/after score and check-change calculation.
   report-share-proof.ts  short-lived HMAC proof that only genuine analyzer results can be stored.
@@ -517,6 +518,12 @@ third-party scoring APIs:
     audit still completes and local re-audit comparison still works.
   - Verified: ESLint, TypeScript, and Next.js production build pass; both history
     endpoints compile as dynamic routes.
+
+- **2026-08-23 (per-user audit allowances)** — Member quota limits can now be
+  overridden with Clerk private metadata `sgaAnalyticsAuditLimit`; the default
+  remains five and defensive bounds restrict overrides to 5–1,000. Usage stays
+  in `sgaAnalyticsAuditsUsed`, and the API/UI report the account's actual limit
+  rather than hard-coding five.
 
 ## Planned — phase 7: persistence, rate limiting, and auth
 

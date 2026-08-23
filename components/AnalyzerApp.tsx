@@ -94,7 +94,7 @@ function AnalyzerExperience({
       if (!quota.authenticated && onRequestSignIn) {
         onRequestSignIn();
       } else {
-        setError("You have used all 5 free member audits.");
+        setError(`You have used all ${quota.limit ?? 5} free member audits.`);
       }
       return;
     }
@@ -406,7 +406,7 @@ function AnalyzerExperience({
       {authEnabled && quota && !result && !loading ? (
         <p className="-mt-5 mb-8 text-center text-xs text-slate-500">
           {quota.authenticated
-            ? `${quota.remaining} of 5 member audits remaining`
+            ? `${quota.remaining} of ${quota.limit} member audits remaining`
             : quota.remaining === 1
               ? "Your first audit is free — no account needed"
               : "Free audit used — sign in to unlock 5 more"}

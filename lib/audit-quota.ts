@@ -3,9 +3,11 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import type { NextResponse } from "next/server";
 
 const ANONYMOUS_LIMIT = 1;
-const MEMBER_LIMIT = 5;
+const DEFAULT_MEMBER_LIMIT = 5;
+const MAX_MEMBER_LIMIT = 1_000;
 const ANONYMOUS_COOKIE = "sga_anon_audit";
-const METADATA_KEY = "sgaAnalyticsAuditsUsed";
+const USAGE_METADATA_KEY = "sgaAnalyticsAuditsUsed";
+const LIMIT_METADATA_KEY = "sgaAnalyticsAuditLimit";
 
 export type AuditQuotaStatus = {
   enabled: boolean;
@@ -32,6 +34,12 @@ function clampUsage(value: unknown, limit: number): number {
   return typeof value === "number" && Number.isInteger(value)
     ? Math.max(0, Math.min(value, limit))
     : 0;
+}
+
+function memberLimit(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value)
+    ? Math.max(DEFAULT_MEMBER_LIMIT, Math.min(value, MAX_MEMBER_LIMIT))
+    : DEFAULT_MEMBER_LIMIT;
 }
 
 function signAnonymousUsage(used: number, secret: string): string {
@@ -127,22 +135,23 @@ export async function getAuditQuota(request: Request): Promise<AuditAllowance> {
   try {
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
-    const used = clampUsage(user.privateMetadata[METADATA_KEY], MEMBER_LIMIT);
+    const limit = memberLimit(user.privateMetadata[LIMIT_METADATA_KEY]);
+    const used = clampUsage(user.privateMetadata[USAGE_METADATA_KEY], limit);
     return {
-      allowed: used < MEMBER_LIMIT,
-      code: used >= MEMBER_LIMIT ? "QUOTA_EXHAUSTED" : undefined,
+      allowed: used < limit,
+      code: used >= limit ? "QUOTA_EXHAUSTED" : undefined,
       error:
-        used >= MEMBER_LIMIT
-          ? "You have used all 5 free member audits."
+        used >= limit
+          ? `You have used all ${limit} free member audits.`
           : undefined,
-      status: status(true, MEMBER_LIMIT, used),
+      status: status(true, limit, used),
     };
   } catch {
     return {
       allowed: false,
       code: "QUOTA_UNAVAILABLE",
       error: "We could not verify your free audits. Please try again.",
-      status: status(true, MEMBER_LIMIT, MEMBER_LIMIT),
+      status: status(true, DEFAULT_MEMBER_LIMIT, DEFAULT_MEMBER_LIMIT),
     };
   }
 }
@@ -175,11 +184,11 @@ export async function reserveAudit(request: Request): Promise<AuditAllowance> {
     }
     const client = await clerkClient();
     await client.users.updateUserMetadata(userId, {
-      privateMetadata: { [METADATA_KEY]: nextUsed },
+      privateMetadata: { [USAGE_METADATA_KEY]: nextUsed },
     });
     return {
       ...allowance,
-      status: status(true, MEMBER_LIMIT, nextUsed),
+      status: status(true, allowance.status.limit ?? DEFAULT_MEMBER_LIMIT, nextUsed),
     };
   } catch {
     return {
