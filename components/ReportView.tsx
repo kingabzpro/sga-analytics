@@ -7,6 +7,7 @@ import { CitabilityCard } from "./CitabilityCard";
 import { Recommendations } from "./Recommendations";
 import { ShareReportButton } from "./ShareReportButton";
 import { SharedReportActions } from "./SharedReportActions";
+import { ComparisonCard } from "./ComparisonCard";
 
 function fmtMs(ms: number): string {
   return ms >= 1000
@@ -56,11 +57,17 @@ export function ReportView({
   cached = false,
   shareProof,
   shared,
+  comparisonBase,
+  onReaudit,
+  reauditDisabled = false,
 }: {
   result: AnalyzeResult;
   cached?: boolean;
   shareProof?: string | null;
   shared?: { id: string; expiresAt: string };
+  comparisonBase?: AnalyzeResult | null;
+  onReaudit?: () => void;
+  reauditDisabled?: boolean;
 }) {
   return (
     <motion.div
@@ -101,14 +108,31 @@ export function ReportView({
             ) : null}
           </div>
 
-          {shared ? (
-            <SharedReportActions id={shared.id} />
-          ) : shareProof ? (
-            <ShareReportButton result={result} shareProof={shareProof} />
-          ) : null}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {onReaudit ? (
+              <button
+                type="button"
+                onClick={onReaudit}
+                disabled={reauditDisabled}
+                title="Runs a fresh audit and uses one audit allowance"
+                className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-teal-700 ring-1 ring-teal-200 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Re-audit &amp; compare
+              </button>
+            ) : null}
+            {shared ? (
+              <SharedReportActions id={shared.id} />
+            ) : shareProof ? (
+              <ShareReportButton result={result} shareProof={shareProof} />
+            ) : null}
+          </div>
         </div>
         <ScoreCards result={result} />
       </div>
+
+      {comparisonBase ? (
+        <ComparisonCard previous={comparisonBase} current={result} />
+      ) : null}
 
       <CitabilityCard probe={result.citability} />
       <Recommendations result={result} />

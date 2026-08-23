@@ -151,6 +151,24 @@ export type DomainRating = {
   source: "ahrefs" | "openpagerank" | "heuristic";
 };
 
+export type AuditHistorySummary = {
+  id: string;
+  url: string;
+  title: string;
+  analyzedAt: string;
+  createdAt: string;
+  overallScore: number;
+  seoScore: number;
+  aeoScore: number;
+  geoScore: number;
+  speedScore: number;
+  technicalScore: number;
+};
+
+export type AuditHistoryEntry = AuditHistorySummary & {
+  result: AnalyzeResult;
+};
+
 /**
  * Real Core Web Vitals from Google. Phase 5 uses the low-latency CrUX API by
  * default; the legacy PSI parser remains supported for compatibility.

@@ -6,6 +6,7 @@ import type { AnalyzeResult } from "@/lib/types";
 import type { AuditQuotaStatus } from "@/lib/audit-quota";
 import { Logo } from "./Logo";
 import { ReportView } from "./ReportView";
+import { AuditHistoryPanel } from "./AuditHistoryPanel";
 import { clerkAppearance } from "@/lib/clerk-theme";
 
 type ProgressEntry = {
@@ -61,6 +62,9 @@ function AnalyzerExperience({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [progressEntries, setProgressEntries] = useState<ProgressEntry[]>([]);
   const [quota, setQuota] = useState<AuditQuotaStatus | null>(null);
+  const [comparisonBase, setComparisonBase] = useState<AnalyzeResult | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState("");
 
   useEffect(() => {
     if (!authEnabled) return;
@@ -82,9 +86,10 @@ function AnalyzerExperience({
     return () => window.clearInterval(timer);
   }, [loading]);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
+  async function runAudit(
+    targetUrl: string,
+    options: { fresh?: boolean; fallbackComparison?: AnalyzeResult | null } = {}
+  ) {
     if (quota?.remaining === 0) {
       if (!quota.authenticated && onRequestSignIn) {
         onRequestSignIn();
@@ -100,13 +105,14 @@ function AnalyzerExperience({
     setResult(null);
     setCached(false);
     setShareProof(null);
+    setComparisonBase(null);
     setProgressEntries([]);
 
     try {
       const res = await fetch("/api/analyze/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: targetUrl, fresh: options.fresh === true }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as {
@@ -126,6 +132,8 @@ function AnalyzerExperience({
       const decoder = new TextDecoder();
       let buffer = "";
       let finalResult: AnalyzeResult | null = null;
+      let finalComparisonBase = options.fallbackComparison ?? null;
+      let finalHistoryId: string | null = null;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -143,6 +151,8 @@ function AnalyzerExperience({
             result?: AnalyzeResult;
             cached?: boolean;
             shareProof?: string | null;
+            historyId?: string | null;
+            comparisonBase?: AnalyzeResult | null;
             error?: string;
           };
           if (event.type === "progress" && event.message && event.stage) {
@@ -158,6 +168,10 @@ function AnalyzerExperience({
             finalResult = event.result;
             setCached(Boolean(event.cached));
             setShareProof(event.shareProof ?? null);
+            finalHistoryId = event.historyId ?? null;
+            if (event.comparisonBase !== undefined) {
+              finalComparisonBase = event.comparisonBase;
+            }
           } else if (event.type === "error") {
             throw new Error(event.error || "Analysis failed");
           }
@@ -167,6 +181,9 @@ function AnalyzerExperience({
 
       if (!finalResult) throw new Error("Analysis finished without a report");
       setResult(finalResult);
+      setComparisonBase(finalComparisonBase);
+      setUrl(finalResult.finalUrl);
+      if (finalHistoryId) setHistoryRefreshKey(finalHistoryId);
       if (authEnabled) {
         const nextQuota = await fetchAuditQuota();
         if (nextQuota) setQuota(nextQuota);
@@ -176,6 +193,34 @@ function AnalyzerExperience({
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await runAudit(url);
+  }
+
+  async function openHistoryEntry(id: string) {
+    const response = await fetch(`/api/history/${encodeURIComponent(id)}`, {
+      cache: "no-store",
+    });
+    const body = (await response.json().catch(() => null)) as
+      | {
+          entry?: { result: AnalyzeResult };
+          shareProof?: string | null;
+          error?: string;
+        }
+      | null;
+    if (!response.ok || !body?.entry) {
+      throw new Error(body?.error || "Could not open this audit.");
+    }
+    setResult(body.entry.result);
+    setUrl(body.entry.result.finalUrl);
+    setCached(false);
+    setComparisonBase(null);
+    setShareProof(body.shareProof ?? null);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   const analyzerBody = (
@@ -284,7 +329,19 @@ function AnalyzerExperience({
       ) : null}
 
       {result ? (
-        <ReportView result={result} cached={cached} shareProof={shareProof} />
+        <ReportView
+          result={result}
+          cached={cached}
+          shareProof={shareProof}
+          comparisonBase={comparisonBase}
+          onReaudit={() =>
+            void runAudit(result.finalUrl, {
+              fresh: true,
+              fallbackComparison: result,
+            })
+          }
+          reauditDisabled={loading || quota?.remaining === 0}
+        />
       ) : null}
     </>
   );
@@ -305,6 +362,13 @@ function AnalyzerExperience({
               </button>
             </Show>
             <Show when="signed-in">
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(true)}
+                className="rounded-xl bg-white/90 px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-teal-50 hover:text-teal-700 hover:ring-teal-200"
+              >
+                History
+              </button>
               {quota?.remaining != null ? (
                 <span className="hidden rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-teal-100 sm:inline-flex">
                   {quota.remaining} free {quota.remaining === 1 ? "audit" : "audits"} left
@@ -393,6 +457,14 @@ function AnalyzerExperience({
           Abid Ali Awan ↗
         </a>
       </footer>
+
+      {authEnabled && historyOpen ? (
+        <AuditHistoryPanel
+          onClose={() => setHistoryOpen(false)}
+          onSelect={openHistoryEntry}
+          refreshKey={`${authSessionKey}:${historyRefreshKey}`}
+        />
+      ) : null}
     </div>
   );
 }

@@ -2,7 +2,8 @@
 
 Lightweight **SEO · AEO · GEO** website scoring app.
 
-Paste a URL → get scores, check breakdowns, and improvement tips.
+Paste a URL → get scores, check breakdowns, improvement tips, temporary shared
+reports, and signed-in before/after comparisons.
 
 ## What it measures
 
@@ -14,7 +15,10 @@ Paste a URL → get scores, check breakdowns, and improvement tips.
 | **Speed** | Response time, page weight, render-blocking resources, image load |
 | **Domain Rating** | Actual backlink-based DR via [Ahrefs](https://docs.ahrefs.com/en/api/reference/public/get-domain-rating-free), then Open PageRank, else a labeled estimate |
 
-The on-page **Overall** score is a weighted blend of SEO / AEO / GEO / Speed (Domain Rating is shown separately as an off-page metric). Scores use continuous partial credit, so a "nearly good" signal earns partial credit instead of zero.
+The on-page **Overall** score is a weighted blend of SEO / AEO / GEO / Speed /
+Technical (Domain Rating is shown separately as an off-page metric). Scores use
+continuous partial credit, so a "nearly good" signal earns partial credit
+instead of zero.
 
 Open-source stack: **cheerio**, **seord**, **robots-parser**. Optional AI tips via **Mistral** (`mistral-medium-latest`). Interactive stats via **motion**.
 
@@ -49,6 +53,7 @@ Returns overall + SEO/AEO/GEO scores, checks, and recommendations.
 | `OPEN_PAGE_RANK_API_KEY` | No | Open PageRank key (`opr_live_...`) for an authoritative Domain Rating |
 | `PAGESPEED_API_KEY` | No | Google key for low-latency CrUX field data, with PSI fallback |
 | `SPEED_DATA_MODE` | No | `crux` (default, PSI fallback) or `psi` |
+| `DATABASE_URL` | No | Neon Postgres for 24-hour shares and 30-day member audit history |
 
 **Model:** `mistral-medium-latest` via `@mistralai/mistralai`.
 

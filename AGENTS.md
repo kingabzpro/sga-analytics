@@ -42,6 +42,7 @@ app/
                          Reserves an env-gated audit allowance before provider work.
   api/analyze/stream/    NDJSON progress stream variant of the same (cached; tags the result event with `cached`).
   api/quota/             GET the current anonymous/member free-audit allowance.
+  api/history/           Private Clerk-user history list; `[id]` returns one owned audit.
   api/reports/           POST a signed AnalyzeResult -> durable 24-hour share.
   report/[id]/           public expiring report page; `/html` downloads a self-contained report.
   sign-in/page.tsx       Clerk <SignIn/> page (redirects away when auth is off).
@@ -54,6 +55,8 @@ components/
                          Restores the pre-auth landing composition; Clerk opens as a unified
                          sign-in-or-up modal (`withSignUp`) from the nav or after audit one.
   ReportView.tsx         shared live/public report composition and page-signals snapshot.
+  AuditHistoryPanel.tsx  signed-in 30-day audit history drawer.
+  ComparisonCard.tsx     score deltas plus fixed/new/unresolved check comparison.
   ShareReportButton.tsx  creates a 24-hour link, copies it, and opens the public report.
   SharedReportActions.tsx  copy-link + Save as HTML controls on public reports.
   CitabilityCard.tsx     phase-4 flagship: "would ChatGPT cite this?" verdict card (Mistral + rule fallback).
@@ -99,6 +102,8 @@ lib/
                          key only, since NEXT_PUBLIC vars are build-time inlined).
   audit-quota.ts         One signed-cookie anonymous audit + five Clerk-metadata member
                          audits; fail-closed when Clerk is partially configured.
+  audit-history.ts       owner-scoped Neon audit snapshots (30-day TTL, 20-entry cap).
+  report-comparison.ts   pure before/after score and check-change calculation.
   report-share-proof.ts  short-lived HMAC proof that only genuine analyzer results can be stored.
   shared-reports.ts      Neon HTTP persistence, opaque deterministic IDs, exact 24-hour expiry.
   report-html.ts         escaped, self-contained offline HTML report renderer.
@@ -140,7 +145,7 @@ lib/
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | Clerk email magic-link login gate. With BOTH set, visitors must sign in before auditing (UI gate + server-side 401 on `/api/analyze*`); without them the app is fully open. `NEXT_PUBLIC_*` is inlined at build time — set before deploy. Optional `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` avoids a Clerk Next 16 proxy redirect bug. The magic-link factor itself is enabled in the Clerk Dashboard (Email → "Email verification link"). |
 | `OPEN_PAGE_RANK_API_KEY` | Open PageRank key (`opr_live_...`) for an authoritative Domain Rating (heuristic estimate otherwise) |
 | `PAGESPEED_API_KEY` | Google PageSpeed Insights v5 key for real Core Web Vitals — LCP/INP/CLS/FCP/TBT/TTFB — feeding the Speed score (on-page heuristics otherwise) |
-| `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Neon Postgres for durable 24-hour shared reports. Without it, report creation returns a clean unavailable response. |
+| `DATABASE_URL` / `DATABASE_URL_UNPOOLED` | Neon Postgres for durable 24-hour shared reports and signed-in 30-day audit history. Without it, both features degrade cleanly. |
 | `REPORT_SHARE_SECRET` | Optional HMAC secret for share proofs when Clerk is disabled; Clerk's server secret is reused when configured. |
 | `HF_TOKEN` / `FIREWORKS_API_KEY` | Legacy — no longer used since the switch to Mistral; kept for reference |
 
@@ -490,6 +495,28 @@ third-party scoring APIs:
   - Verified: schema setup, ESLint, TypeScript, Next production build, live local
     analyze-stream → share → repeat-share (same ID) → public page → HTML download;
     forged proof returns 403 and an expired fixture returns 410.
+
+- **2026-08-23 (re-audit history + comparison)** — Signed-in audits now become
+  a private progress workflow instead of isolated one-off reports.
+  - Added owner-scoped Neon `audit_history` storage with deterministic snapshot
+    IDs, a 30-day retention window, and a 20-entry per-user cap. Cached repeats
+    of the same underlying analysis do not create duplicate rows.
+  - `/api/history` lists only the active Clerk user's summaries and
+    `/api/history/[id]` enforces the same owner check before returning a stored
+    result. Stored results receive a fresh share proof when reopened.
+  - The signed-in nav now opens an audit-history drawer. Any saved report can be
+    reopened, shared, or re-audited from the live result view.
+  - `Re-audit & compare` sends `fresh: true`, bypassing completed 10-minute cache
+    entries while preserving in-flight coalescing. This prevents spending an
+    allowance on a misleading same-snapshot comparison.
+  - `ComparisonCard` shows Overall/SEO/AEO/GEO/Speed/Technical deltas plus checks
+    fixed, newly failing, and still unresolved. The comparison baseline comes
+    from the prior stored audit for the same canonical URL, with the currently
+    open result as a resilient client fallback.
+  - History is optional: without Clerk it stays out of the UI; without Neon the
+    audit still completes and local re-audit comparison still works.
+  - Verified: ESLint, TypeScript, and Next.js production build pass; both history
+    endpoints compile as dynamic routes.
 
 ## Planned — phase 7: persistence, rate limiting, and auth
 

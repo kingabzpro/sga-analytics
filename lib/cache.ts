@@ -97,13 +97,18 @@ function fmtAge(ms: number): string {
  */
 export async function analyzeUrlCached(
   rawUrl: string,
-  options?: { onProgress?: (event: AnalyzeProgress) => void }
+  options?: {
+    onProgress?: (event: AnalyzeProgress) => void;
+    /** A deliberate re-audit bypasses completed cache entries, but still joins
+     * an identical in-flight run to avoid duplicate provider spend. */
+    fresh?: boolean;
+  }
 ): Promise<{ result: AnalyzeResult; cached: boolean; ageMs: number }> {
   const key = cacheKey(rawUrl); // may throw — same errors as analyzeUrl
   const onProgress = options?.onProgress ?? (() => {});
 
   // 1. Completed hit — serve instantly, skip the pipeline.
-  const hit = readCache(key);
+  const hit = options?.fresh ? null : readCache(key);
   if (hit) {
     onProgress({
       stage: "cache",

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { analyzeUrlCached, cacheKey } from "@/lib/cache";
 import { applyAuditQuotaHeaders, reserveAudit } from "@/lib/audit-quota";
 import { createReportShareProof } from "@/lib/report-share-proof";
+import {
+  isAuditHistoryConfigured,
+  recordAuditHistory,
+} from "@/lib/audit-history";
 
 export const runtime = "nodejs";
 export const maxDuration = 30; // bounded external calls + transparent UI progress
@@ -10,6 +15,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
     const url = typeof body?.url === "string" ? body.url : "";
+    const fresh = body?.fresh === true;
 
     if (!url.trim()) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
@@ -26,7 +32,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const { result, cached } = await analyzeUrlCached(url);
+    const { result, cached } = await analyzeUrlCached(url, { fresh });
+    if (allowance.status.authenticated && isAuditHistoryConfigured()) {
+      try {
+        const { userId } = await auth();
+        if (userId) await recordAuditHistory(userId, result);
+      } catch (historyError) {
+        console.error("Failed to save audit history", historyError);
+      }
+    }
     const proof = createReportShareProof(result);
     const response = NextResponse.json(result, {
       headers: {
