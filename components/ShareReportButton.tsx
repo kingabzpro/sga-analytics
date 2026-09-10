@@ -58,25 +58,27 @@ export function ShareReportButton({
 
   if (created) {
     return (
-      <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
-        <span className="text-emerald-700">
-          {copied ? "Link copied · " : "Ready · "}expires in 24 hours
-        </span>
-        <button
-          type="button"
-          onClick={copyLink}
-          className="cursor-pointer rounded-lg bg-white px-3 py-2 font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
-        >
-          {copied ? "Copied successfully" : "Copy link"}
-        </button>
-        <a
-          href={created.url}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg bg-teal-700 px-3 py-2 font-semibold text-white transition hover:bg-teal-800"
-        >
-          Open report ↗
-        </a>
+      <div className="text-right text-xs">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={copyLink}
+            className="cursor-pointer rounded-lg bg-white px-3 py-2 font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+          >
+            Copy link
+          </button>
+          <a
+            href={created.url}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg bg-teal-700 px-3 py-2 font-semibold text-white transition hover:bg-teal-800"
+          >
+            Open report ↗
+          </a>
+        </div>
+        <p aria-live="polite" className="mt-2 text-emerald-700">
+          {copied ? "Copied successfully · " : "Ready · "}expires in 24 hours
+        </p>
       </div>
     );
   }
