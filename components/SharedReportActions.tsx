@@ -19,9 +19,9 @@ export function SharedReportActions({ id }: { id: string }) {
       <button
         type="button"
         onClick={copyLink}
-        className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+        className="cursor-pointer rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
       >
-        {copied ? "Copied" : "Copy link"}
+        {copied ? "Copied successfully" : "Copy link"}
       </button>
       <a
         href={`/report/${encodeURIComponent(id)}/html`}

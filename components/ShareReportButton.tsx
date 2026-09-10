@@ -65,9 +65,9 @@ export function ShareReportButton({
         <button
           type="button"
           onClick={copyLink}
-          className="rounded-lg bg-white px-3 py-2 font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+          className="cursor-pointer rounded-lg bg-white px-3 py-2 font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
         >
-          Copy link
+          {copied ? "Copied successfully" : "Copy link"}
         </button>
         <a
           href={created.url}
