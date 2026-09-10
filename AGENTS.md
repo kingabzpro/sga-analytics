@@ -525,6 +525,28 @@ third-party scoring APIs:
   in `sgaAnalyticsAuditsUsed`, and the API/UI report the account's actual limit
   rather than hard-coding five.
 
+- **2026-09-10 (Mistral conversations fix)** — Restored real
+  `mistral-medium-latest` output after Mistral's free plan zeroed the
+  chat/completions allocation for medium-class models in early Aug 2026; the
+  site had silently fallen back to `rules` tips and citability for about a
+  month (429s don't count as console "usage").
+  - Root cause: key and env vars were always correct. `/v1/chat/completions`
+    returns 429 with `x-ratelimit-limit-req-minute: 0` for medium/small/
+    magistral on the Free plan; only ministral/codestral/nemo have allocations.
+    Key learning: Mistral's rate-limit pools are per-endpoint, and
+    `/v1/conversations` keeps its own pool (~20K tokens/min) that still serves
+    medium on the same key.
+  - Fix: a `converse()` helper in `lib/ai-recommendations.ts` now runs both AI
+    calls (tips + citability) through `client.beta.conversations.start()`
+    (SDK 2.5.0 `beta.conversations`, camelCase `completionArgs`), then
+    fire-and-forget deletes the stored conversation so audit prompts don't
+    accumulate server-side. Same 8s timeout and rule fallbacks.
+  - Verified: `tsc`, `eslint`, `next build` pass; local production server ran
+    the whole workflow (home, quota gate with 1 anonymous audit then 401,
+    analyze returning `aiSource: "mistral"` + Ahrefs + PSI in 7.7s, cached
+    NDJSON stream with share proof, share → public page → HTML export against
+    Neon).
+
 ## Planned — phase 7: persistence, rate limiting, and auth
 
 > **Status: Track C (auth) SHIPPED 2026-08-22 — see the auth-gate entry above

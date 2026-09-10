@@ -3,8 +3,8 @@ import type { AnalyzeResult, CategoryScore, CitabilityProbe, PageSignals } from 
 
 // AI tips via Mistral (`@mistralai/mistralai`). mistral-medium-latest answers a
 // real audit prompt in ~5s with clean VERDICT/[TAG] output. Falls back to
-// rule-based tips if no key is set or the call fails/slow — the AI text is an
-// enhancement, never a blocker for the analysis itself.
+// rule-based tips if no key is set or the call fails/slow (the AI text is an
+// enhancement, never a blocker for the analysis itself).
 const MODEL = "mistral-medium-latest";
 // AI is an enhancement. Give Mistral enough time for a useful answer while
 // retaining a bounded rule fallback for slow/provider-failure cases.
@@ -157,6 +157,50 @@ function parseAiText(text: string): {
   };
 }
 
+/**
+ * Run one stateless prompt through Mistral's Conversations API.
+ *
+ * /v1/chat/completions is unusable on Mistral's free plan: since Aug 2026 it
+ * returns 429 with a 0 req/min allocation for medium-class models, while
+ * /v1/conversations keeps its own token pool (~20K tokens/min) that still
+ * serves them. Every call creates a stored conversation server-side, so it is
+ * deleted right after the text is extracted (fire-and-forget; cleanup must
+ * never block or fail the audit).
+ */
+async function converse(
+  client: Mistral,
+  prompt: string,
+  opts: { maxTokens: number; temperature: number }
+): Promise<string> {
+  const res = await client.beta.conversations.start({
+    model: MODEL,
+    inputs: [{ role: "user", content: prompt }],
+    completionArgs: { maxTokens: opts.maxTokens, temperature: opts.temperature },
+  });
+
+  if (res.conversationId) {
+    void client.beta.conversations
+      .delete({ conversationId: res.conversationId })
+      .catch(() => {});
+  }
+
+  const out = res.outputs?.find((o) => o.type === "message.output");
+  const raw =
+    out?.type === "message.output" && out.role === "assistant"
+      ? out.content
+      : undefined;
+  // content can be a string or an array of content parts; normalize to text
+  return typeof raw === "string"
+    ? raw
+    : Array.isArray(raw)
+      ? raw
+          .map((p) =>
+            typeof p === "string" ? p : "text" in p ? (p.text ?? "") : ""
+          )
+          .join("\n")
+      : "";
+}
+
 export async function generateAiAdvice(input: {
   url: string;
   overallScore: number;
@@ -222,34 +266,12 @@ Rules: use real advice from the failed checks; do not copy placeholders; each li
   try {
     const client = new Mistral({ apiKey: token });
 
-    const result = await Promise.race([
-      client.chat.complete({
-        model: MODEL,
-        messages: [{ role: "user", content: prompt }],
-        maxTokens: 800,
-        temperature: 0.3,
-      }),
+    const content = await Promise.race([
+      converse(client, prompt, { maxTokens: 800, temperature: 0.3 }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("AI timeout")), AI_TIMEOUT_MS)
       ),
     ]);
-
-    const raw = result?.choices?.[0]?.message?.content;
-    // content can be a string or an array of content parts; normalize to text
-    const content =
-      typeof raw === "string"
-        ? raw
-        : Array.isArray(raw)
-          ? raw
-              .map((p) =>
-                typeof p === "string"
-                  ? p
-                  : "text" in p
-                    ? (p.text ?? "")
-                    : ""
-              )
-              .join("\n")
-          : "";
     if (!content.trim()) return fallback;
 
     const parsed = parseAiText(content);
@@ -396,27 +418,12 @@ REASON: <one sentence>`;
 
   try {
     const client = new Mistral({ apiKey: token });
-    const result = await Promise.race([
-      client.chat.complete({
-        model: MODEL,
-        messages: [{ role: "user", content: prompt }],
-        maxTokens: 300,
-        temperature: 0.2,
-      }),
+    const content = await Promise.race([
+      converse(client, prompt, { maxTokens: 300, temperature: 0.2 }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("AI timeout")), AI_TIMEOUT_MS)
       ),
     ]);
-
-    const raw = result?.choices?.[0]?.message?.content;
-    const content =
-      typeof raw === "string"
-        ? raw
-        : Array.isArray(raw)
-          ? raw
-              .map((p) => (typeof p === "string" ? p : "text" in p ? (p.text ?? "") : ""))
-              .join("\n")
-          : "";
     if (!content.trim()) return fallback;
 
     const parsed = parseCitability(content);
